@@ -6,19 +6,18 @@ use App\Filament\Resources\TeacherResource\Pages\CreateTeacher;
 use App\Filament\Resources\TeacherResource\Pages\EditTeacher;
 use App\Filament\Resources\TeacherResource\Pages\ListTeacher;
 use App\Models\User;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class TeacherResource extends Resource
@@ -50,11 +49,10 @@ class TeacherResource extends Resource
                     ->password()
                     ->revealable()
                     ->required(fn (string $context): bool => $context === 'create')
-                    ->dehydrateStateUsing(fn (?string $state): ?string => filled($state) ? Hash::make($state) : null)
                     ->dehydrated(fn (?string $state): bool => filled($state)),
                 Hidden::make('role')
                     ->default('TEACHER'),
-                Toggle::make('is_suspended')
+                Toggle::make('suspended_at')
                     ->label('Suspended')
                     ->formatStateUsing(fn (?User $record): bool => $record !== null && $record->suspended_at !== null)
                     ->dehydrateStateUsing(function (bool $state, ?User $record): ?string {
@@ -130,7 +128,7 @@ class TeacherResource extends Resource
                     ->color('gray')
                     ->action(function (User $record): void {
                         $plain = Str::random(16);
-                        $record->password = Hash::make($plain);
+                        $record->password = $plain;
                         $record->save();
 
                         Notification::make()
