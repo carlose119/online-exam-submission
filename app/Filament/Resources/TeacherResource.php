@@ -9,9 +9,9 @@ use App\Models\User;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
@@ -25,7 +25,7 @@ class TeacherResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-academic-cap';
 
     protected static ?string $navigationLabel = 'Teachers';
 
@@ -34,9 +34,9 @@ class TeacherResource extends Resource
         return parent::getEloquentQuery()->where('role', 'TEACHER');
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
+        return $schema
             ->schema([
                 TextInput::make('name')
                     ->required()
@@ -104,7 +104,7 @@ class TeacherResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                // Future: filter by suspended status
+                //
             ])
             ->actions([
                 EditAction::make(),
@@ -143,7 +143,7 @@ class TeacherResource extends Resource
                 DeleteAction::make(),
             ])
             ->bulkActions([
-                // Future: bulk suspend/reactivate
+                //
             ]);
     }
 
