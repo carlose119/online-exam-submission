@@ -52,4 +52,6 @@ Chain strategy: stacked-to-main
 ## Phase 4: Documentation
 
 - [x] 4.1 README: create `README.md` with project overview, Laragon setup steps, MariaDB↔MySQL compatibility note, admin credentials reference (no secrets), version constraints. Verify: `Test-Path README.md`.
-- [ ] 4.2 Full smoke: `php artisan serve` boots, `/admin` renders login, seeded admin logs in, Teacher create→list→edit→suspend→delete round-trips. Dependencies: 2.5, 3.4. Verify: manual walkthrough succeeds.
+- [x] 4.2 Full smoke: `php artisan serve` boots, `/admin` renders login, seeded admin logs in, Teacher create→list→edit→suspend→delete round-trips. Dependencies: 2.5, 3.4. Verify: manual walkthrough succeeds.
+
+All 18 tasks completed. Change ready for archive.
