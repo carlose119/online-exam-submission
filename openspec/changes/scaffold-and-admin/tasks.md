@@ -25,9 +25,9 @@ Chain strategy: pending
 
 ## Phase 1: Foundation (Skeleton, Filament, Auth, Model)
 
-- [ ] 1.1 Scaffold: `composer create-project laravel/laravel .` with `^13.0` (fallback `^12.0` if blocked). Verify: `php artisan --version` returns a Laravel version.
-- [ ] 1.2 Env: set `.env` `DB_CONNECTION=mysql`, `DB_DATABASE=online_exam_submission`, Laragon defaults. Verify: `php artisan migrate:status` connects without error.
-- [ ] 1.3 Storage: ensure `config/filesystems.php` public disk root is `storage_path('app/public')`; run `php artisan storage:link`. Verify: `Test-Path public/storage`.
+- [x] 1.1 Scaffold: `composer create-project laravel/laravel .` with `^13.0` (fallback `^12.0` if blocked). Verify: `php artisan --version` returns a Laravel version.
+- [x] 1.2 Env: set `.env` `DB_CONNECTION=mysql`, `DB_DATABASE=online_exam_submission`, Laragon defaults. Verify: `php artisan migrate:status` connects without error.
+- [x] 1.3 Storage: ensure `config/filesystems.php` public disk root is `storage_path('app/public')`; run `php artisan storage:link`. Verify: `Test-Path public/storage`.
 - [ ] 1.4 Filament: `composer require filament/filament:^5.0`, then `php artisan filament:install --panels`. Verify: `Test-Path app/Providers/Filament/AdminPanelProvider.php`.
 - [ ] 1.5 Middleware: create `app/Http/Middleware/CheckRole.php` — `handle()` aborts 403 unless `auth()->user()->role` is in allowed list. Verify: file exists with `abort(403)` in code.
 - [ ] 1.6 Panel: modify `AdminPanelProvider.php` — register `CheckRole` middleware with `ADMIN,TEACHER` roles, set panel path `/admin`. Verify: `php artisan route:list` shows `/admin` routes.
