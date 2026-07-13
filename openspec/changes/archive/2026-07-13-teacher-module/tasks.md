@@ -59,3 +59,5 @@ Not needed — single PR under 400-line budget.
 ## Implementation Order
 
 Topological: Phase 1 (migration → model) → Phase 2 (resource → pages) → Phase 3 (controller → view → route) → Phase 4 (tests) → Phase 5 (docs + smoke). Within Phase 2, 2.1 before 2.2-2.4. Within Phase 3, 3.1 and 3.2 before 3.3.
+
+All 13 tasks completed. Change ready for archive.
