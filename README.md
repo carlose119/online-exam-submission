@@ -80,6 +80,38 @@ This is a **stack drift**, not a bug:
 - The PRD will be updated to reflect "Livewire v4+" in a follow-up change.
 - No migration or rollback is needed — this is the standard Filament v5 dependency chain.
 
+## Teacher Classes & Invitation Flow
+
+Teachers can manage their classes via the Filament `/admin/classes` panel (auto-discovered resource).
+
+### CRUD
+
+- **List** — teachers see only their own classes (`teacher_id = Auth::id()` query scope).
+- **Create** — an 8-character `invitation_code` is auto-generated via `Str::random(8)` with a retry-on-collision loop (max 5 attempts).
+- **Edit** — title, description, and syllabus (RichEditor, WYSIWYG) are editable.
+- **Delete** — removes the class. FK is `restrict` (no cascade — the `class_user` pivot is deferred).
+
+### Invitation Code & Link
+
+- Each class has a unique `invitation_code` (12-char unique column, currently storing 8-char values).
+- **Copy invitation link** action on the edit page copies the full URL `https://{host}/clase/unirse/{invitation_code}` to the clipboard and shows a persistent notification.
+- **Regenerate invitation code** action replaces the existing code with a new unique one.
+- The table column is `copyable()` (Badge style).
+
+### Public Join Route
+
+`GET /clase/unirse/{invitation_code}` renders a minimal Blade view (`resources/views/class/join.blade.php`) showing the class title, description, and syllabus (raw HTML).
+
+- **Guests** see a "Log in to join" link targeting the Filament admin login page.
+- **Authenticated users** see a "TBD: join this class" placeholder button. No `class_user` pivot record is created — student subscription is deferred to a future change.
+
+### Future: Student Subscription
+
+The `class_user` pivot table and actual join logic are **not implemented** in this slice. The public route and TBD placeholder are honest affordances that unblock the Student module once it lands. See the delta specs:
+
+- [teacher-class-management](openspec/changes/teacher-module/specs/teacher-class-management/spec.md)
+- [class-invitation-flow](openspec/changes/teacher-module/specs/class-invitation-flow/spec.md)
+
 ## Running Tests
 
 ```bash
