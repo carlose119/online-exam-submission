@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Hash;
 
 #[Fillable(['name', 'email', 'password', 'role', 'suspended_at'])]
@@ -42,5 +43,13 @@ class User extends Authenticatable
         if ($value !== null) {
             $this->attributes['password'] = Hash::make($value);
         }
+    }
+
+    /**
+     * The classes this user is subscribed to as a student.
+     */
+    public function subscribedClasses(): BelongsToMany
+    {
+        return $this->belongsToMany(SchoolClass::class, 'class_user', 'user_id', 'class_id')->withTimestamps();
     }
 }
