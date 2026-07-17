@@ -56,3 +56,7 @@ Chain strategy: stacked-to-main
 
 - [x] 5.1 Run full test suite: `vendor/bin/pest` — all existing (46+) + new tests pass. **Verify**: exit code 0, no failures.
 - [x] 5.2 Smoke-test Filament routes: `php artisan route:list --path=admin/exams` shows index, create, edit. **Verify**: 3 routes listed.
+
+---
+
+**All 16 tasks completed. Change ready for archive.**
