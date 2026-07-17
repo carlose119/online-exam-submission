@@ -28,6 +28,11 @@ class TeacherResource extends Resource
 
     protected static ?string $navigationLabel = 'Teachers';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->role === 'ADMIN';
+    }
+
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
         return parent::getEloquentQuery()->where('role', 'TEACHER');

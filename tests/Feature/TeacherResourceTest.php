@@ -237,3 +237,38 @@ it('prevents mass-assignment of non-fillable attributes', function () {
     expect($fresh->name)->toBe('Guard Test');
     expect($fresh->role)->toBe('TEACHER');
 });
+
+// ---------------------------------------------------------------------------
+// Access Control (security fix: TeacherResource restricted to ADMIN only)
+// ---------------------------------------------------------------------------
+
+it('denies teacher access to TeacherResource', function () {
+    $teacher = User::create([
+        'name' => 'Teacher Denied',
+        'email' => 'teacher-denied@example.com',
+        'password' => 'pw',
+        'role' => 'TEACHER',
+    ]);
+
+    $this->actingAs($teacher);
+
+    // canAccess() must return false for TEACHER users
+    expect(TeacherResource::canAccess())->toBeFalse();
+
+    // HTTP access to /admin/teachers must be forbidden (403)
+    $this->get('/admin/teachers')->assertForbidden();
+});
+
+it('allows admin access to TeacherResource', function () {
+    $admin = User::create([
+        'name' => 'Admin Access',
+        'email' => 'admin-access@example.com',
+        'password' => 'pw',
+        'role' => 'ADMIN',
+    ]);
+
+    $this->actingAs($admin);
+
+    // canAccess() must return true for ADMIN users
+    expect(TeacherResource::canAccess())->toBeTrue();
+});
