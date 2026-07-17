@@ -148,6 +148,67 @@ The following are explicitly out of scope for this slice and will be addressed i
 - **Material reordering**: Materials are fixed in `created_at DESC` order; drag-and-drop reordering is not implemented.
 - **php.ini requirements**: The server's `upload_max_filesize` and `post_max_size` must be configured to ≥ 50 MB to accept maximum-size uploads. This is a server-level concern outside the application scope.
 
+## Teacher Exams: Builder and Question Types
+
+Teachers can create exams with questions and answer options via the Filament `/admin/exams` panel. Each exam belongs to a class and follows a strict 3-tier structure: **exam → questions → answer options**.
+
+### Creating an Exam
+
+1. Navigate to `/admin/exams` and click **Create**.
+2. Select a class (only the teacher's own classes appear).
+3. Fill in exam details: title, description (optional), duration in minutes, and max score.
+4. Add one or more questions using the **Questions Repeater**. Each question has:
+   - **Text**: The question body.
+   - **Type**: `SINGLE` (one correct answer) or `MULTIPLE` (multiple correct answers).
+   - **Points**: The score weight of this question.
+5. For each question, add at least **two answer options** via the nested **Options Repeater**:
+   - **Text**: The option text.
+   - **Is Correct**: Toggle to mark the option as correct. Each question must have **at least one correct option**.
+6. Submit. The exam appears in the list, sorted newest-first.
+
+### 3-Tier Structure
+
+| Tier | Model | Relationship |
+|------|-------|-------------|
+| 1 — Exam | `Exam` | `belongsTo SchoolClass`, hasMany `Question` |
+| 2 — Question | `Question` | `belongsTo Exam`, hasMany `AnswerOption` |
+| 3 — Option | `AnswerOption` | `belongsTo Question` |
+
+All three tiers use **cascade delete**: deleting an exam removes all its questions and their options at the database level.
+
+### SINGLE vs MULTIPLE Question Types
+
+| Type | Description | Label Color |
+|------|-----------|-------------|
+| **SINGLE** | Exactly one correct option per question | Blue (info) |
+| **MULTIPLE** | One or more correct options per question | Orange (warning) |
+
+When a teacher switches a question's type between SINGLE and MULTIPLE, a **warning notification** reminds them to review the `is_correct` flags — the existing flags are preserved, NOT auto-cleared.
+
+### Strict MCQ Rule
+
+The **strict MCQ rule** is enforced at grading time, not in the builder: a SINGLE question with multiple correct options, or a MULTIPLE question with no correct option at all, is treated as an **invalid question** during grading. The builder allows any combination of flags so teachers can draft freely, but the grading engine will reject inconsistent configurations.
+
+### max_score Auto-Calculation
+
+The `max_score` field defaults to the **sum of all question points** when left at the default value (100). Teachers can override this by setting an explicit max_score. A user-interface warning suggests reviewing the value if `max_score` is less than the sum of question points.
+
+### Question Order
+
+Questions are numbered sequentially based on their position in the Repeater (order column: 0, 1, 2, …). On edit, the order is renumbered to match the current Repeater arrangement.
+
+### Preview Action
+
+The Edit page includes a **Preview as student** header action that renders the full exam as formatted JSON in a modal, showing all questions and options with their `is_correct` flags.
+
+### Cascade Delete Warning
+
+When deleting an exam, a confirmation modal warns: "This exam, its questions, and all answer options will be permanently deleted." All related rows are removed from the database in a single cascading operation.
+
+### Deferred Grading Engine
+
+The grading engine that scores student submissions is **not implemented** in this slice. The builder creates exams and questions; the actual MCQ grading logic is deferred to a future change. The strict MCQ rule described above is the grading contract that future implementations must honor.
+
 ## Running Tests
 
 ```bash
@@ -167,6 +228,9 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 | `tests/Feature/ClassInvitationFlowTest.php` | 5 | Public join page: valid/invalid codes, guest login link, auth TBD placeholder, Materials section |
 | `tests/Feature/StudyMaterialResourceTest.php` | 8 | Material CRUD per type, scope isolation, ordering, JSON round-trip, form schema validation |
 | `tests/Feature/StudyMaterialPublicViewTest.php` | 6 | Public Materials section: per-type rendering, YouTube embed, non-YouTube anchor, MEETING card, empty state |
+| `tests/Feature/ExamResourceTest.php` | 10 | CRUD query scope, cascade delete, form rendering, class Select scoping, max_score integer, max_score sum-from-questions, question ordering, questions_count withCount, type-switch, form renders |
+| `tests/Feature/QuestionModelTest.php` | 3 | Question→exam & options relationships, QuestionType enum cast, AnswerOption is_correct boolean cast |
+| `tests/Feature/AnswerOptionModelTest.php` | 3 | AnswerOption→question relationship, is_correct boolean cast, DB persistence as integer |
 | `tests/Feature/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 | `tests/Unit/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 
@@ -175,10 +239,16 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 ```
 app/
 ├── Enums/
-│   └── StudyMaterialType.php        # FILE | LINK | MEETING backed enum
+│   ├── QuestionType.php              # SINGLE | MULTIPLE backed enum (getLabel, getColor, getIcon)
+│   └── StudyMaterialType.php         # FILE | LINK | MEETING backed enum
 ├── Filament/
 │   └── Resources/
 │       ├── ClassResource.php         # Class CRUD (create, edit, delete, regenerate, copy-link)
+│       ├── ExamResource.php          # Exam CRUD with nested questions+options Repeaters, teacher-scoped query
+│       │   └── Pages/
+│       │       ├── CreateExam.php    # max_score defaulting, question order, correct-option validation
+│       │       ├── EditExam.php      # order renumbering, preview JSON modal
+│       │       └── ListExams.php     # ListRecords stub
 │       ├── StudyMaterialResource.php # Study material CRUD with conditional form
 │       └── TeacherResource.php       # Teacher CRUD (create, edit, suspend, delete, temp password)
 ├── Http/
@@ -187,7 +257,10 @@ app/
 │   └── Middleware/
 │       └── CheckRole.php             # Role-based access control (ADMIN, TEACHER)
 ├── Models/
-│   ├── SchoolClass.php               # Eloquent model with teacher(), studyMaterials()
+│   ├── AnswerOption.php              # Eloquent model with question(), is_correct boolean cast
+│   ├── Exam.php                      # Eloquent model with classroom(), questions()
+│   ├── Question.php                  # Eloquent model with exam(), options(), QuestionType enum cast
+│   ├── SchoolClass.php               # Eloquent model with teacher(), studyMaterials(), exams()
 │   ├── StudyMaterial.php             # Eloquent model with classroom(), extra_metadata JSON cast
 │   └── User.php                      # Eloquent model with role enum, suspended_at, password hashing
 └── Providers/
@@ -198,15 +271,21 @@ database/
 ├── factories/
 │   └── UserFactory.php
 ├── migrations/
-│   └── 0001_01_01_000000_create_users_table.php  # users schema (role, suspended_at)
+│   ├── 0001_01_01_000000_create_users_table.php  # users schema (role, suspended_at)
+│   ├── *_create_exams_table.php                  # exams (class_id FK, title, duration, max_score)
+│   ├── *_create_questions_table.php              # questions (exam_id FK, text, type ENUM, points, order)
+│   └── *_create_answer_options_table.php         # answer_options (question_id FK, text, is_correct)
 └── seeders/
     └── AdminUserSeeder.php          # Idempotent admin seeder
 
 tests/
 ├── Feature/
 │   ├── AdminPanelSmokeTest.php
+│   ├── AnswerOptionModelTest.php
 │   ├── ClassInvitationFlowTest.php
 │   ├── ClassResourceTest.php
+│   ├── ExamResourceTest.php
+│   ├── QuestionModelTest.php
 │   ├── StudyMaterialPublicViewTest.php
 │   ├── StudyMaterialResourceTest.php
 │   └── TeacherResourceTest.php

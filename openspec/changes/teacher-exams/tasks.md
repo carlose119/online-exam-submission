@@ -44,15 +44,15 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Tests
 
-- [ ] 3.1 Create `tests/Feature/ExamResourceTest.php` — CRUD (create exam→list→edit), type-switch notification preserves flags, query scope cross-teacher isolation, minItems validation, cascade delete, order renumbering, class Select scoping. **Verify**: `vendor/bin/pest tests/Feature/ExamResourceTest.php` — all pass.
-- [ ] 3.2 Create `tests/Feature/QuestionModelTest.php` — relationship resolution (`exam()`, `options()`), `QuestionType` enum cast round-trip, order column default. **Verify**: `vendor/bin/pest tests/Feature/QuestionModelTest.php` — all pass.
-- [ ] 3.3 Create `tests/Feature/AnswerOptionModelTest.php` — relationship resolution (`question()`), `is_correct` boolean cast round-trip. **Verify**: `vendor/bin/pest tests/Feature/AnswerOptionModelTest.php` — all pass.
+- [x] 3.1 Create `tests/Feature/ExamResourceTest.php` — CRUD (create exam→list→edit), type-switch notification preserves flags, query scope cross-teacher isolation, minItems validation, cascade delete, order renumbering, class Select scoping. **Verify**: `vendor/bin/pest tests/Feature/ExamResourceTest.php` — all pass.
+- [x] 3.2 Create `tests/Feature/QuestionModelTest.php` — relationship resolution (`exam()`, `options()`), `QuestionType` enum cast round-trip, order column default. **Verify**: `vendor/bin/pest tests/Feature/QuestionModelTest.php` — all pass.
+- [x] 3.3 Create `tests/Feature/AnswerOptionModelTest.php` — relationship resolution (`question()`), `is_correct` boolean cast round-trip. **Verify**: `vendor/bin/pest tests/Feature/AnswerOptionModelTest.php` — all pass.
 
 ## Phase 4: Documentation
 
-- [ ] 4.1 Add "Teacher exams: builder and question types" section to `README.md` after the "Teacher materials" section. **Verify**: `Select-String -Path README.md -Pattern 'Teacher exams'` returns match.
+- [x] 4.1 Add "Teacher exams: builder and question types" section to `README.md` after the "Teacher materials" section. **Verify**: `Select-String -Path README.md -Pattern 'Teacher exams'` returns match.
 
 ## Phase 5: Final Verification
 
-- [ ] 5.1 Run full test suite: `vendor/bin/pest` — all existing (46+) + new tests pass. **Verify**: exit code 0, no failures.
-- [ ] 5.2 Smoke-test Filament routes: `php artisan route:list --path=admin/exams` shows index, create, edit. **Verify**: 3 routes listed.
+- [x] 5.1 Run full test suite: `vendor/bin/pest` — all existing (46+) + new tests pass. **Verify**: exit code 0, no failures.
+- [x] 5.2 Smoke-test Filament routes: `php artisan route:list --path=admin/exams` shows index, create, edit. **Verify**: 3 routes listed.
