@@ -122,9 +122,12 @@
 
         <div class="action">
             @if ($isAuthenticated)
-                <button class="btn btn-tbd" disabled>TBD: join this class</button>
+                <form method="POST" action="{{ route('class.join.action', $invitationCode) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-primary">Unirse a clase</button>
+                </form>
             @else
-                <a href="{{ $loginUrl }}" class="btn btn-primary">Log in to join</a>
+                <a href="{{ route('login', ['redirect' => route('class.join.show', $invitationCode)]) }}" class="btn btn-primary">Log in to join</a>
             @endif
         </div>
 
