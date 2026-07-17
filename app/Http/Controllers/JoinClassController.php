@@ -21,8 +21,11 @@ class JoinClassController extends Controller
     {
         $class = SchoolClass::where('invitation_code', $invitationCode)->firstOrFail();
 
+        $materials = $class->studyMaterials()->orderByDesc('created_at')->get();
+
         return view('class.join', [
             'class' => $class,
+            'materials' => $materials,
             'isAuthenticated' => Auth::check(),
             'loginUrl' => route('filament.admin.auth.login'),
         ]);
