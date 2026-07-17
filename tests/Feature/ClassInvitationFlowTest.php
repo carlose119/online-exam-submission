@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\StudyMaterialType;
 use App\Models\SchoolClass;
+use App\Models\StudyMaterial;
 use App\Models\User;
 
 // ---------------------------------------------------------------------------
@@ -91,4 +93,53 @@ it('authenticated user sees TBD placeholder', function () {
 it('nonexistent invitation code returns 404', function () {
     $response = $this->get(route('class.join.show', 'NONEXIST'));
     $response->assertNotFound();
+});
+
+// ---------------------------------------------------------------------------
+// (e) Materials section renders after TBD block when class has materials
+// ---------------------------------------------------------------------------
+
+it('renders Materials section after TBD block when class has materials', function () {
+    $teacher = User::create([
+        'name' => 'Materials Flow Teacher',
+        'email' => 'matflow@example.com',
+        'password' => 'password',
+        'role' => 'TEACHER',
+    ]);
+
+    $class = SchoolClass::create([
+        'title' => 'Materials Flow Class',
+        'description' => 'Class with materials',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => 'MATFLOW1',
+    ]);
+
+    StudyMaterial::create([
+        'class_id' => $class->id,
+        'title' => 'PDF Notes',
+        'type' => StudyMaterialType::File,
+        'file_path_or_url' => 'materials/1/notes.pdf',
+    ]);
+
+    StudyMaterial::create([
+        'class_id' => $class->id,
+        'title' => 'YouTube Intro',
+        'type' => StudyMaterialType::Link,
+        'file_path_or_url' => 'https://www.youtube.com/watch?v=xyz123abc45',
+    ]);
+
+    $response = $this->actingAs($teacher)
+        ->get(route('class.join.show', 'MATFLOW1'));
+
+    $response->assertStatus(200);
+    $response->assertSee('Materials Flow Class');
+    // Materials section renders with the heading
+    $response->assertSee('Materials');
+    // Both materials are visible
+    $response->assertSee('PDF Notes');
+    $response->assertSee('YouTube Intro');
+    // YouTube embed works
+    $response->assertSee('youtube.com/embed/xyz123abc45', false);
+    // Existing TBD block still renders
+    $response->assertSee('TBD: join this class');
 });
