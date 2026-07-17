@@ -148,7 +148,78 @@ The following are explicitly out of scope for this slice and will be addressed i
 - **Material reordering**: Materials are fixed in `created_at DESC` order; drag-and-drop reordering is not implemented.
 - **php.ini requirements**: The server's `upload_max_filesize` and `post_max_size` must be configured to ≥ 50 MB to accept maximum-size uploads. This is a server-level concern outside the application scope.
 
-## Teacher Exams: Builder and Question Types
+## Student Auth and Multi-Class Subscription
+
+Students can register, log in, and subscribe to classes via the Breeze + Blade auth stack. The `Users` table is shared with the Filament admin panel; each guard (web for students, admin for Filament) operates independently.
+
+### Registration & Login
+
+1. Navigate to `/register` and create an account. The `role` is automatically set to `STUDENT` via the registration controller, and the password is hashed by the `User` model's existing `setPasswordAttribute` mutator + `hashed` cast — no explicit `Hash::make()` in auth controllers.
+2. After registration, you are redirected to `/dashboard` (a Livewire component behind `auth` + `role:STUDENT` middleware).
+3. Login is at `/login`; logout at `/logout` clears the session and returns to `/`.
+
+### Joining a Class
+
+1. A guest (or authenticated user) visits a class invitation link: `/clase/unirse/{invitation_code}`.
+2. **Guests** see a "Log in to join" link pointing to `/login?redirect=/clase/unirse/{code}` — after Breeze login, the user returns to the join page.
+3. **Authenticated students** see an "Unirse a clase" button. Clicking it POSTs to `/clase/unirse/{code}/join`, creating a `class_user` pivot row via `firstOrCreate` (idempotent — no duplicate error on double-click).
+4. Success redirects to `/dashboard` with a flash message.
+
+### Student Dashboard
+
+`/dashboard` is a Livewire component (`app/Livewire/Dashboard.php` + `resources/views/livewire/dashboard.blade.php`) that:
+
+- Lists subscribed classes as cards (title, description, material count, exam count)
+- Shows an empty state ("You haven't joined any classes yet.") when there are zero subscriptions
+- Is gated by `auth` + `role:STUDENT` middleware — teachers and admins get a 403
+- Uses the Breeze `layouts.app` Blade layout for consistent styling
+
+### class_user Pivot Table
+
+- `database/migrations/*_create_class_user_table.php`: `id`, `class_id` (FK → `classes`, cascade), `user_id` (FK → `users`, cascade), timestamps, `UNIQUE(class_id, user_id)`
+- `User::subscribedClasses()`: `belongsToMany(SchoolClass::class, 'class_user', 'user_id', 'class_id')->withTimestamps()`
+- `SchoolClass::students()`: `belongsToMany(User::class, 'class_user', 'class_id', 'user_id')->withTimestamps()`
+
+### Breeze + Filament Coexistence
+
+Two auth stacks share the `User` model:
+
+| Feature | Student Side | Admin/Teacher Side |
+|---------|-------------|-------------------|
+| Auth stack | Breeze (web guard) | Filament (admin guard) |
+| Panel URL | `/login`, `/register`, `/dashboard` | `/admin/login`, `/admin` |
+| Role gate | `role:STUDENT` middleware | `CheckRole:ADMIN,TEACHER` in Filament panel provider |
+| Password hashing | `User::setPasswordAttribute` mutator + `hashed` cast | Same model, same mechanism |
+
+The `User` model is shared; roles are enforced at the middleware/guard level.
+
+### No-Mailer Limitation
+
+The `.env` file has no `MAIL_MAILER` configured. Password reset and email verification routes are wired by Breeze but **no emails are actually sent**. Password reset tokens are still generated and valid (usable directly in tests), but the email notification step is skipped in production. `MustVerifyEmail` is **not** implemented on the `User` model — email verification is deferred.
+
+### Deferred Items
+
+The following are out of scope for this slice and will be implemented in future changes:
+
+- **Exam taking UI**: The student-side exam wizard with one-question-at-a-time display, answer submission, and server-validated countdown timer.
+- **Grading engine**: Strict MCQ grading (all correct AND no incorrect selected = full points), score persistence, and instant result display.
+- **Reports**: PDF and Excel teacher reports via `barryvdh/laravel-dompdf` and `maatwebsite/excel`.
+- **Email verification**: Enable `MustVerifyEmail` on `User` once a mailer is configured.
+- **Profile editing and password change**: Routes are wired but profile editing is deferred.
+
+### Test Coverage
+
+| File | Count | Covers |
+|------|-------|--------|
+| `tests/Feature/Auth/RegistrationTest.php` | 2 | Registration screen renders, new users can register |
+| `tests/Feature/Auth/AuthenticationTest.php` | 4 | Login screen, valid/invalid login, logout |
+| `tests/Feature/Auth/PasswordResetTest.php` | 4 | Forgot password screen, reset link request, reset screen, password reset |
+| `tests/Feature/Auth/PasswordUpdateTest.php` | 2 | Password update, correct password required |
+| `tests/Feature/ClassInvitationFlowTest.php` | 6 | Join page: valid/invalid codes, guest link with `?redirect`, auth join form, Materials section |
+| `tests/Feature/StudentJoinClassTest.php` | 4 | Pivot creation + redirect, idempotent duplicate, 404 on nonexistent code, 302 unauthenticated |
+| `tests/Feature/StudentDashboardTest.php` | 4 | Auth gate, STUDENT role gate, cards render, empty state |
+| `tests/Feature/ClassUserPivotTest.php` | 5 | Schema columns, UNIQUE constraint, cascade delete (class + user), relationship resolution with timestamps |
+
 
 Teachers can create exams with questions and answer options via the Filament `/admin/exams` panel. Each exam belongs to a class and follows a strict 3-tier structure: **exam → questions → answer options**.
 
@@ -165,6 +236,8 @@ Teachers can create exams with questions and answer options via the Filament `/a
    - **Text**: The option text.
    - **Is Correct**: Toggle to mark the option as correct. Each question must have **at least one correct option**.
 6. Submit. The exam appears in the list, sorted newest-first.
+
+## Teacher Exams: Builder and Question Types
 
 ### 3-Tier Structure
 
