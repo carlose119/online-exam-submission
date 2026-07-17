@@ -97,3 +97,7 @@ Chain strategy: pending
 
 - [x] 6.3 Verify routes: `php artisan route:list` shows `/login`, `/register`, `/dashboard`, `/clase/unirse/{code}`, `/clase/unirse/{code}/join`
   - Verify: all five route patterns visible in output
+
+---
+
+All 21 tasks completed. Change ready for archive.

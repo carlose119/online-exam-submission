@@ -4,6 +4,8 @@
 
 Public (unauthenticated) route `clase/unirse/{invitation_code}` rendering class details via a Blade view outside the Filament panel. Auth-aware join affordance: authenticated users see a TBD placeholder (no actual subscription is created); unauthenticated users see a login link. The invitation link URL format is `https://{host}/clase/unirse/{invitation_code}`. Additionally, the join page renders a "Materials" section displaying the class's study materials (files, links, meetings) after the TBD block.
 
+**Note**: As of the `student-module` change (July 2026), the authenticated TBD placeholder and the `/admin/login` guest link documented in the original requirements below have been SUPERSEDED by the ADDED requirements 8–10. See those requirements for the current behavior.
+
 ## Requirements
 
 ### Requirement: Public Invitation Route
@@ -17,7 +19,7 @@ The system MUST expose a public GET route `clase/unirse/{invitation_code}` outsi
 - THEN HTTP 200 is returned
 - AND the view displays "Math 101", the description, and the syllabus content
 
-### Requirement: Auth-Aware Join Affordance
+### Requirement: Auth-Aware Join Affordance (Original behavior — superseded by student-module ADDED requirements)
 
 The system MUST render different join affordances based on authentication state. Unauthenticated users MUST see a "Log in to join" link pointing to `/admin/login`. Authenticated users MUST see a button labeled "TBD: join this class" that does NOT create any `class_user` subscription record.
 
@@ -114,3 +116,55 @@ When a class has no study materials, the Materials section SHOULD be hidden.
 - GIVEN a class has zero study materials
 - WHEN a visitor loads the join page
 - THEN no "Materials" heading or section is rendered
+
+### Requirement: Student Join Button (ADDED in student-module)
+
+Authenticated students MUST see an "Unirse a clase" form (replacing the previous TBD placeholder) that POSTs to the route named `class.join.action`. Clicking the button MUST create a `class_user` pivot row via `firstOrCreate` and redirect to `/dashboard` with a success flash. Subscription MUST remain explicit (one click, not automatic on page load).
+
+#### Scenario: Auth student sees join button, not auto-subscribed
+
+- GIVEN authenticated STUDENT at `/clase/unirse/abc12345`
+- WHEN the page renders
+- THEN an "Unirse a clase" button appears inside a `<form method="POST" action="{{ route('class.join.action', $code) }}">`
+- AND the student is NOT yet subscribed (must click the button)
+
+#### Scenario: Join action creates subscription
+
+- GIVEN authenticated STUDENT clicks "Unirse a clase" on `/clase/unirse/abc12345`
+- WHEN the POST form submits to `/clase/unirse/abc12345/join`
+- THEN a `class_user` row is created with the correct `class_id` and `user_id`
+- AND the student is redirected to `/dashboard` with a success flash message
+
+### Requirement: Guest Auth Redirect Flow (ADDED in student-module)
+
+Unauthenticated users MUST see a "Log in to join" link pointing to `/login?redirect=/clase/unirse/{code}` (replacing the previous `/admin/login` link). After successful login via Breeze, the user MUST be returned to the join page. External/open redirects MUST be rejected, falling back to `/dashboard`.
+
+#### Scenario: Guest sees login link with redirect parameter
+
+- GIVEN an unauthenticated visitor loads `/clase/unirse/abc12345`
+- WHEN the page renders
+- THEN a "Log in to join" link links to `/login?redirect=/clase/unirse/abc12345`
+
+#### Scenario: Post-login return to join page
+
+- GIVEN a guest clicks the login link, lands on `/login?redirect=/clase/unirse/abc12345`
+- WHEN the guest submits valid credentials on the login form
+- THEN the user is redirected to `/clase/unirse/abc12345` (the join page), not `/dashboard`
+
+#### Scenario: External redirect URL is rejected
+
+- GIVEN a login attempt with `?redirect=https://evil.com/phishing`
+- WHEN the login form is submitted
+- THEN the redirect is rejected as unsafe
+- AND the user is redirected to `/dashboard` (safe default)
+
+### Requirement: Idempotent Join (ADDED in student-module)
+
+Duplicate join attempts MUST be graceful no-ops: no duplicate `class_user` row, no error displayed, same redirect to `/dashboard` with a success flash. Implemented via `firstOrCreate` at the application layer and a DB-level `UNIQUE(class_id, user_id)` constraint as the source of truth.
+
+#### Scenario: Duplicate join is idempotent
+
+- GIVEN a student is already subscribed to class "abc12345" (existing `class_user` row)
+- WHEN the student clicks "Unirse a clase" again
+- THEN no duplicate `class_user` row is created (application layer: `firstOrCreate` returns existing; DB layer: unique constraint blocks insert)
+- AND the student is redirected to `/dashboard` with a success flash (no error)
