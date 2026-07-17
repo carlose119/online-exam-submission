@@ -52,7 +52,7 @@ class EditStudyMaterial extends EditRecord
                         ->persistent()
                         ->send();
 
-                    $this->dispatch('clipboard-copy', url: $url);
+                    $this->js('navigator.clipboard.writeText("' . addslashes($url) . '").then(() => console.log("copied")).catch(() => console.warn("clipboard fail"))');
                 }),
         ];
     }
