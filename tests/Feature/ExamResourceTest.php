@@ -246,78 +246,87 @@ it('class_id select shows only the authenticated teachers classes', function () 
 });
 
 // ---------------------------------------------------------------------------
-// (f) max_score stored and retrieved correctly at model level
+// (f) end-to-end Filament form persists exam, questions, and options
 // ---------------------------------------------------------------------------
 
-it('max_score is stored and retrieved correctly', function () {
+it('creating an exam via the form persists the exam, questions, and options', function () {
     $teacher = User::create([
-        'name' => 'MaxScore Teacher',
-        'email' => 'maxscore@example.com',
+        'name' => 'E2E Form Teacher',
+        'email' => 'e2eform@example.com',
         'password' => 'password',
         'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title' => 'MaxScore Class',
+        'title' => 'E2E Form Class',
         'teacher_id' => $teacher->id,
-        'invitation_code' => 'MAXSCOR1',
+        'invitation_code' => 'E2EFORM1',
     ]);
 
-    // max_score can be any integer value
-    $exam = Exam::create([
-        'class_id' => $class->id,
-        'title' => 'Max Score Test',
-        'duration_minutes' => 60,
-        'max_score' => 42,
+    Auth::login($teacher);
+
+    $component = Livewire::test(CreateExam::class)
+        ->fillForm([
+            'class_id' => $class->id,
+            'title' => 'End-to-End Form Exam',
+            'duration_minutes' => 45,
+            'max_score' => 100,
+        ])
+        ->assertOk();
+
+    // Discover the UUID key of the default question (minItems(1) creates one).
+    $data = $component->get('data');
+    $questionKeys = array_keys($data['questions'] ?? []);
+    expect($questionKeys)->toHaveCount(1);
+    $qKey = $questionKeys[0];
+
+    // Set question fields via its UUID key.
+    $component
+        ->set("data.questions.{$qKey}.text", 'What is 2+2?')
+        ->set("data.questions.{$qKey}.type", 'SINGLE')
+        ->set("data.questions.{$qKey}.points", 5);
+
+    // Directly set the options state with 2 items (minItems(2) requirement).
+    // Use the existing option UUID key plus a new one.
+    $existingOptionKeys = array_keys($data['questions'][$qKey]['options'] ?? []);
+    $optKey1 = $existingOptionKeys[0] ?? \Illuminate\Support\Str::uuid()->toString();
+    $optKey2 = \Illuminate\Support\Str::uuid()->toString();
+
+    $component->set("data.questions.{$qKey}.options", [
+        $optKey1 => ['text' => '3', 'is_correct' => false],
+        $optKey2 => ['text' => '4', 'is_correct' => true],
     ]);
 
-    expect($exam->max_score)->toBe(42);
-    expect(is_int($exam->max_score))->toBeTrue();
+    $component
+        ->call('create')
+        ->assertHasNoErrors();
 
-    // max_score can be updated
-    $exam->max_score = 99;
-    $exam->save();
+    // Assert exam was created. max_score is explicitly set to 100 and since
+    // there are question points (5), the default-sum logic in beforeCreate()
+    // replaces 100 with 5 when questions are present and max_score is the
+    // form's default (100).
+    expect(Exam::where('title', 'End-to-End Form Exam')->exists())->toBeTrue();
 
-    expect($exam->fresh()->max_score)->toBe(99);
-});
+    $exam = Exam::where('title', 'End-to-End Form Exam')->first();
+    expect($exam->duration_minutes)->toBe(45);
+    // max_score was 100 (the default) with questions totaling 5 points, so
+    // beforeCreate() replaced it with the sum.
+    expect($exam->max_score)->toBe(5);
 
-// ---------------------------------------------------------------------------
-// (g) max_score computed sum of question points is used as default
-// ---------------------------------------------------------------------------
+    // Assert questions were persisted through the relationship Repeater
+    $questions = $exam->questions;
+    expect($questions)->toHaveCount(1);
+    expect($questions[0]->text)->toBe('What is 2+2?');
+    expect($questions[0]->type->value)->toBe('SINGLE');
+    expect($questions[0]->points)->toBe(5);
 
-it('max_score sum of question points is computed from model relationships', function () {
-    $teacher = User::create([
-        'name' => 'Sum Teacher',
-        'email' => 'examsum@example.com',
-        'password' => 'password',
-        'role' => 'TEACHER',
-    ]);
-
-    $class = SchoolClass::create([
-        'title' => 'Sum Class',
-        'teacher_id' => $teacher->id,
-        'invitation_code' => 'SUMMAX01',
-    ]);
-
-    $exam = Exam::create([
-        'class_id' => $class->id,
-        'title' => 'Sum Test',
-        'duration_minutes' => 60,
-        'max_score' => 100,
-    ]);
-
-    // Create 3 questions worth 5 points each (total: 15)
-    Question::create(['exam_id' => $exam->id, 'text' => 'Q1', 'type' => 'SINGLE', 'points' => 5, 'order' => 0]);
-    Question::create(['exam_id' => $exam->id, 'text' => 'Q2', 'type' => 'SINGLE', 'points' => 5, 'order' => 1]);
-    Question::create(['exam_id' => $exam->id, 'text' => 'Q3', 'type' => 'SINGLE', 'points' => 5, 'order' => 2]);
-
-    // Verify the sum computed from the relationship
-    $totalPoints = $exam->questions->sum('points');
-    expect($totalPoints)->toBe(15);
-
-    // The default-sum logic (in mutateFormDataBeforeCreate) would replace
-    // max_score=100 with totalPoints=15. Here we verify the calculation.
-    expect($exam->questions)->toHaveCount(3);
+    // Assert options were persisted through the relationship sub-Repeater
+    $q1Options = $questions[0]->options;
+    expect($q1Options)->toHaveCount(2);
+    expect($q1Options[0]->text)->toBe('3');
+    expect($q1Options[0]->is_correct)->toBeFalse();
+    expect($q1Options[1]->text)->toBe('4');
+    expect($q1Options[1]->is_correct)->toBeTrue();
 });
 
 // ---------------------------------------------------------------------------

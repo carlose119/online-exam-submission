@@ -13,11 +13,6 @@ class EditExam extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        // Renumber question order sequentially from Repeater position
-        foreach ($data['questions'] ?? [] as $index => &$question) {
-            $question['order'] = $index;
-        }
-
         return $data;
     }
 

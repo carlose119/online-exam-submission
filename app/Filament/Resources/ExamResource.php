@@ -74,6 +74,8 @@ class ExamResource extends Resource
                     ]),
 
                 Repeater::make('questions')
+                    ->relationship('questions')
+                    ->orderColumn('order')
                     ->schema([
                         Textarea::make('text')
                             ->required(),
@@ -96,6 +98,7 @@ class ExamResource extends Resource
                             ->default(1),
 
                         Repeater::make('options')
+                            ->relationship('options')
                             ->schema([
                                 TextInput::make('text')
                                     ->required(),

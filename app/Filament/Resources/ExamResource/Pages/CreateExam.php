@@ -12,8 +12,19 @@ class CreateExam extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // max_score defaulting and correct-option validation need access to the
+        // relationship Repeater data. Relationship state is NOT in $data when
+        // ->relationship() is used on Repeaters (Filament strips it before
+        // calling this hook). Access it via $this->data instead.
+        return $data;
+    }
+
+    protected function beforeValidate(): void
+    {
+        $questions = $this->data['questions'] ?? [];
+
         // Validate at least one correct option per question
-        foreach ($data['questions'] ?? [] as $qIndex => $question) {
+        foreach ($questions as $qIndex => $question) {
             $hasCorrect = false;
             foreach ($question['options'] ?? [] as $option) {
                 if (! empty($option['is_correct'])) {
@@ -30,21 +41,15 @@ class CreateExam extends CreateRecord
 
         // Compute total points from all questions
         $totalPoints = 0;
-        foreach ($data['questions'] ?? [] as $question) {
+        foreach ($questions as $question) {
             $totalPoints += (int) ($question['points'] ?? 0);
         }
 
-        // Default max_score to sum of question points if not explicitly overridden
-        $explicitMaxScore = $data['max_score'] ?? 100;
+        // Default max_score to sum of question points if not explicitly overridden.
+        // Modify $this->data BEFORE $this->form->getState() captures it in create().
+        $explicitMaxScore = $this->data['max_score'] ?? 100;
         if ($totalPoints > 0 && $explicitMaxScore == 100) {
-            $data['max_score'] = $totalPoints;
+            $this->data['max_score'] = $totalPoints;
         }
-
-        // Set order on each question from its Repeater position (0-indexed)
-        foreach ($data['questions'] ?? [] as $index => &$question) {
-            $question['order'] = $index;
-        }
-
-        return $data;
     }
 }
