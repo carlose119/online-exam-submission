@@ -51,12 +51,13 @@ class StudyMaterialResource extends Resource
                     ->options(StudyMaterialType::class)
                     ->default(StudyMaterialType::Link->value)
                     ->live()
-                    ->afterStateUpdated(fn (Set $set) => $set
-                        ->set('file_path_or_url', null)
-                        ->set('uploaded_file', null)
-                        ->set('extra_metadata', null)
-                        ->set('meeting_title', null)
-                        ->set('scheduled_at', null))
+                    ->afterStateUpdated(function (Set $set) {
+                        $set('file_path_or_url', null);
+                        $set('uploaded_file', null);
+                        $set('extra_metadata', null);
+                        $set('meeting_title', null);
+                        $set('scheduled_at', null);
+                    })
                     ->required(),
 
                 TextInput::make('title')
