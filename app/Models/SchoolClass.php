@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['title', 'description', 'syllabus', 'teacher_id', 'invitation_code'])]
 class SchoolClass extends Model
@@ -21,6 +22,14 @@ class SchoolClass extends Model
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Study materials attached to this class.
+     */
+    public function studyMaterials(): HasMany
+    {
+        return $this->hasMany(StudyMaterial::class, 'class_id');
     }
 
     /**
