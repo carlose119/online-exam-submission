@@ -55,14 +55,15 @@ it('guest sees login link', function () {
 
     $response->assertStatus(200);
     $response->assertSee('Log in to join');
-    $response->assertSee(route('filament.admin.auth.login'));
+    // The login link now points to the Breeze login with ?redirect
+    $response->assertSee(route('login', ['redirect' => route('class.join.show', 'GUEST123')]));
 });
 
 // ---------------------------------------------------------------------------
 // (c) Authenticated user sees TBD placeholder with no subscription side-effect
 // ---------------------------------------------------------------------------
 
-it('authenticated user sees TBD placeholder', function () {
+it('authenticated user sees join form not TBD', function () {
     $teacher = User::create([
         'name' => 'Auth Teacher',
         'email' => 'auth-teacher@example.com',
@@ -80,10 +81,36 @@ it('authenticated user sees TBD placeholder', function () {
         ->get(route('class.join.show', 'AUTH1234'));
 
     $response->assertStatus(200);
-    $response->assertSee('TBD: join this class');
-    // Confirm no subscription record was created (class_user pivot
-    // doesn't exist yet, so nothing to check — verify no DB write happened)
-    $this->assertDatabaseCount('classes', 1);
+    $response->assertSee('Unirse a clase');
+    $response->assertDontSee('TBD: join this class');
+    // Confirm the form action points to the correct join route
+    $response->assertSee(route('class.join.action', 'AUTH1234'));
+});
+
+// ---------------------------------------------------------------------------
+// (d) Guest login link carries ?redirect param
+// ---------------------------------------------------------------------------
+
+it('guest login link carries redirect param', function () {
+    $teacher = User::create([
+        'name' => 'Guest Teacher',
+        'email' => 'guest-link@example.com',
+        'password' => 'password',
+        'role' => 'TEACHER',
+    ]);
+
+    SchoolClass::create([
+        'title' => 'Guest Link Test',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => 'LINK1234',
+    ]);
+
+    $response = $this->get(route('class.join.show', 'LINK1234'));
+
+    $response->assertStatus(200);
+    $response->assertSee('Log in to join');
+    // The login link now points to the Breeze login with ?redirect
+    $response->assertSee(route('login', ['redirect' => route('class.join.show', 'LINK1234')]));
 });
 
 // ---------------------------------------------------------------------------
@@ -140,6 +167,6 @@ it('renders Materials section after TBD block when class has materials', functio
     $response->assertSee('YouTube Intro');
     // YouTube embed works
     $response->assertSee('youtube.com/embed/xyz123abc45', false);
-    // Existing TBD block still renders
-    $response->assertSee('TBD: join this class');
+    // Join form is now active (not TBD)
+    $response->assertSee('Unirse a clase');
 });

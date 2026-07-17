@@ -36,8 +36,8 @@ it('renders Materials section after TBD block when class has materials', functio
     $response->assertStatus(200);
     $response->assertSee('Materials');
     $response->assertSee('Lecture Notes');
-    // Materials section appears AFTER the TBD block
-    $response->assertSee('TBD: join this class');
+    // Materials section appears AFTER the join form
+    $response->assertSee('Unirse a clase');
 });
 
 // ---------------------------------------------------------------------------
