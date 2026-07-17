@@ -33,6 +33,14 @@ class SchoolClass extends Model
     }
 
     /**
+     * Exams attached to this class.
+     */
+    public function exams(): HasMany
+    {
+        return $this->hasMany(Exam::class);
+    }
+
+    /**
      * Students subscribed to this class.
      *
      * The class_user pivot table is deferred — this relationship is
