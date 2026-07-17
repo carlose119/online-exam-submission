@@ -98,19 +98,18 @@ Teachers can manage their classes via the Filament `/admin/classes` panel (auto-
 - **Regenerate invitation code** action replaces the existing code with a new unique one.
 - The table column is `copyable()` (Badge style).
 
-### Public Join Route
+### Public Join Route (now powered by the Student module)
 
-`GET /clase/unirse/{invitation_code}` renders a minimal Blade view (`resources/views/class/join.blade.php`) showing the class title, description, and syllabus (raw HTML).
+`GET /clase/unirse/{invitation_code}` renders a minimal Blade view (`resources/views/class/join.blade.php`) showing the class title, description, syllabus (raw HTML), and the class's study materials (FILE / LINK with YouTube embed / MEETING).
 
-- **Guests** see a "Log in to join" link targeting the Filament admin login page.
-- **Authenticated users** see a "TBD: join this class" placeholder button. No `class_user` pivot record is created — student subscription is deferred to a future change.
+- **Guests** see a "Log in to join" link to `Breeze /login?redirect=/clase/unirse/{code}`. After successful login, Breeze redirects back to the join page (the `?redirect` query param is preserved through the login form and respected by `AuthenticatedSessionController::store()`, with open-redirect protection — only relative URLs and same-host absolute URLs are accepted).
+- **Authenticated students** see a "Unirse a clase" form (`<form method="POST" action="{{ route('class.join.action', $invitationCode) }}">`) that creates a `class_user` pivot row on submission. The join is idempotent (uses `firstOrCreate` on `['class_id', 'user_id']` and the DB-level UNIQUE constraint covers race conditions). After joining, the student is redirected to `/dashboard` with a success flash.
+- **Class subscription** is implemented in the [Student module](README.md#student-auth-and-multi-class-subscription) via the `class_user` pivot table. The pivot has `onDelete('cascade')` on both FKs (deleting a class removes its subscriptions; deleting a user removes their subscriptions).
 
-### Future: Student Subscription
+See the canonical specs:
 
-The `class_user` pivot table and actual join logic are **not implemented** in this slice. The public route and TBD placeholder are honest affordances that unblock the Student module once it lands. See the delta specs:
-
-- [teacher-class-management](openspec/changes/teacher-module/specs/teacher-class-management/spec.md)
-- [class-invitation-flow](openspec/changes/teacher-module/specs/class-invitation-flow/spec.md)
+- [class-invitation-flow](openspec/specs/class-invitation-flow/spec.md) (extended via the teacher-materials delta and again via the student-module change)
+- [teacher-class-management](openspec/specs/teacher-class-management/spec.md)
 
 ## Teacher Materials: Files, Links, and Meetings
 
