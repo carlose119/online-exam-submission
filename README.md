@@ -112,6 +112,42 @@ The `class_user` pivot table and actual join logic are **not implemented** in th
 - [teacher-class-management](openspec/changes/teacher-module/specs/teacher-class-management/spec.md)
 - [class-invitation-flow](openspec/changes/teacher-module/specs/class-invitation-flow/spec.md)
 
+## Teacher Materials: Files, Links, and Meetings
+
+Teachers can attach study materials to their classes via the Filament `/admin/study-materials` panel. Materials are visible to anyone with the class invitation link — no authentication required for viewing.
+
+### Material Types
+
+| Type | Description | What Visitors See |
+|------|-----------|-------------------|
+| **FILE** | Uploaded document (PDF, DOCX, XLSX, MP4) | Title as a download link |
+| **LINK** | External URL | YouTube links embed as responsive iframes; all other URLs render as plain anchor links (`target="_blank" rel="noopener"`) |
+| **MEETING** | Live meeting (Google Meet, Zoom, etc.) | Title, formatted date/time, and a "Join meeting" button |
+
+### File Upload Limits
+
+- **Accepted MIME types**: `application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (DOCX), `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (XLSX), `video/mp4`
+- **Maximum file size**: 50 MB (51,200 KB)
+- **Storage**: Files are stored on the `public` disk under `materials/{class_id}/` and served via `Storage::url()`
+
+### YouTube Embed Behavior
+
+When a LINK material's URL matches a YouTube pattern (`youtube.com/watch?v=`, `youtube.com/embed/`, or `youtu.be/`), the 11-character video ID is extracted and rendered as a responsive `<iframe>` embedding `https://www.youtube.com/embed/{id}`. Non-YouTube URLs fall back to a plain `<a target="_blank" rel="noopener noreferrer">` link.
+
+### Public Visibility
+
+Materials are rendered on the public class join page (`/clase/unirse/{invitation_code}`) in the "Materials" section, ordered newest-first (`created_at DESC`). If a class has no materials, the section is hidden.
+
+### Deferred Items
+
+The following are explicitly out of scope for this slice and will be addressed in future changes:
+
+- **File cleanup on disk**: Deleting a material or class does not remove the uploaded file from the `public` disk.
+- **Storage quotas**: No per-teacher or per-class storage limits are enforced.
+- **Bulk upload**: Only single-file upload is supported.
+- **Material reordering**: Materials are fixed in `created_at DESC` order; drag-and-drop reordering is not implemented.
+- **php.ini requirements**: The server's `upload_max_filesize` and `post_max_size` must be configured to ≥ 50 MB to accept maximum-size uploads. This is a server-level concern outside the application scope.
+
 ## Running Tests
 
 ```bash
@@ -127,6 +163,10 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 |------|-------|--------|
 | `tests/Feature/AdminPanelSmokeTest.php` | 4 | Filament panel boot, login redirects, no class-not-found errors |
 | `tests/Feature/TeacherResourceTest.php` | 13 | Password hashing, double-hash guard, CRUD, suspend toggle, temp password, unique email, role scope, mass-assignment guard |
+| `tests/Feature/ClassResourceTest.php` | 9 | Teacher-scoped class CRUD, auto-generated invitation_code, cross-teacher access guard, syllabus RichEditor, copy-link action |
+| `tests/Feature/ClassInvitationFlowTest.php` | 5 | Public join page: valid/invalid codes, guest login link, auth TBD placeholder, Materials section |
+| `tests/Feature/StudyMaterialResourceTest.php` | 8 | Material CRUD per type, scope isolation, ordering, JSON round-trip, form schema validation |
+| `tests/Feature/StudyMaterialPublicViewTest.php` | 6 | Public Materials section: per-type rendering, YouTube embed, non-YouTube anchor, MEETING card, empty state |
 | `tests/Feature/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 | `tests/Unit/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 
@@ -134,17 +174,25 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 
 ```
 app/
+├── Enums/
+│   └── StudyMaterialType.php        # FILE | LINK | MEETING backed enum
 ├── Filament/
 │   └── Resources/
-│       └── TeacherResource.php      # Teacher CRUD (create, edit, suspend, delete, temp password)
+│       ├── ClassResource.php         # Class CRUD (create, edit, delete, regenerate, copy-link)
+│       ├── StudyMaterialResource.php # Study material CRUD with conditional form
+│       └── TeacherResource.php       # Teacher CRUD (create, edit, suspend, delete, temp password)
 ├── Http/
+│   ├── Controllers/
+│   │   └── JoinClassController.php   # Public class join page + Materials section
 │   └── Middleware/
-│       └── CheckRole.php            # Role-based access control (ADMIN, TEACHER)
+│       └── CheckRole.php             # Role-based access control (ADMIN, TEACHER)
 ├── Models/
-│   └── User.php                     # Eloquent model with role enum, suspended_at, password hashing
+│   ├── SchoolClass.php               # Eloquent model with teacher(), studyMaterials()
+│   ├── StudyMaterial.php             # Eloquent model with classroom(), extra_metadata JSON cast
+│   └── User.php                      # Eloquent model with role enum, suspended_at, password hashing
 └── Providers/
     └── Filament/
-        └── AdminPanelProvider.php   # Single panel at /admin, role middleware
+        └── AdminPanelProvider.php    # Single panel at /admin, role middleware
 
 database/
 ├── factories/
@@ -157,6 +205,10 @@ database/
 tests/
 ├── Feature/
 │   ├── AdminPanelSmokeTest.php
+│   ├── ClassInvitationFlowTest.php
+│   ├── ClassResourceTest.php
+│   ├── StudyMaterialPublicViewTest.php
+│   ├── StudyMaterialResourceTest.php
 │   └── TeacherResourceTest.php
 └── Pest.php                         # Pest v4 config with RefreshDatabase
 ```
