@@ -16,7 +16,9 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): View
     {
-        return view('auth.login');
+        return view('auth.login', [
+            'redirect' => request('redirect'),
+        ]);
     }
 
     /**
@@ -28,7 +30,41 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        $redirect = $request->input('redirect');
+
+        if ($redirect) {
+            $safeUrl = $this->safeRedirect($redirect, $request->getHost());
+
+            if ($safeUrl !== null) {
+                return redirect($safeUrl);
+            }
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    /**
+     * Validate and return a safe redirect URL.
+     *
+     * Relative URLs (starting with /) are always safe.
+     * Absolute URLs are only safe if they match the application host.
+     * Returns the safe URL or null if the URL is unsafe.
+     */
+    private function safeRedirect(string $url, string $appHost): ?string
+    {
+        // Relative URL — always safe
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return $url;
+        }
+
+        // Absolute URL — validate same host
+        $parsed = parse_url($url);
+
+        if (($parsed['host'] ?? '') === $appHost) {
+            return $url;
+        }
+
+        return null;
     }
 
     /**
