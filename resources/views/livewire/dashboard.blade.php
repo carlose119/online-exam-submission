@@ -117,4 +117,51 @@
             @endforeach
         </div>
     @endif
+
+    {{-- Available exams --}}
+    @if ($availableExams->isNotEmpty())
+        <div style="margin-top:2.5rem;margin-bottom:1rem;">
+            <h2 style="font-size:1.25rem;margin:0 0 1rem 0;">Examenes disponibles</h2>
+            <div class="grid">
+                @foreach ($availableExams as $exam)
+                    <div class="card">
+                        <h3>{{ $exam->title }}</h3>
+                        @if ($exam->description)
+                            <p class="description">{{ Str::limit($exam->description, 100) }}</p>
+                        @endif
+                        <div class="counts" style="margin-bottom:1rem;">
+                            <span>{{ $exam->duration_minutes }} min</span>
+                            <span>{{ $exam->max_score }} pts</span>
+                        </div>
+                        <a href="{{ route('student.exam.start', $exam) }}"
+                           style="display:inline-block;background:#2563eb;color:#fff;border-radius:6px;padding:0.5rem 1rem;text-decoration:none;font-size:0.875rem;">
+                            Iniciar examen
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    {{-- Completed exams --}}
+    @if ($completedAttempts->isNotEmpty())
+        <div style="margin-top:2.5rem;margin-bottom:1rem;">
+            <h2 style="font-size:1.25rem;margin:0 0 1rem 0;">Examenes completados</h2>
+            <div class="grid">
+                @foreach ($completedAttempts as $attempt)
+                    <div class="card">
+                        <h3>{{ $attempt->exam->title }}</h3>
+                        <p style="font-size:1.5rem;font-weight:700;margin:0.5rem 0;">
+                            {{ (float) $attempt->score_obtained }} / {{ (int) $attempt->exam->max_score }}
+                        </p>
+                        @if ($attempt->finished_at)
+                            <p style="color:#64748b;font-size:0.8125rem;">
+                                Completado el {{ $attempt->finished_at->format('d/m/Y H:i') }}
+                            </p>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </div>
