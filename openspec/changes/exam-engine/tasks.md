@@ -45,41 +45,41 @@ Chain strategy: pending
 
 ## Phase 3: Model Tests (PR 1 → deferred to PR 2)
 
-- [ ] 3.1 Write `tests/Feature/StudentAttemptTest.php`: table columns, UNIQUE constraint (duplicate blocked, cross-exam allowed), cascade delete on student + exam, relationship resolution.
+- [x] 3.1 Write `tests/Feature/StudentAttemptTest.php`: table columns, UNIQUE constraint (duplicate blocked, cross-exam allowed), cascade delete on student + exam, relationship resolution.
   **Deps**: 1.1, 1.2, 1.5. **Verify**: `vendor/bin/pest tests/Feature/StudentAttemptTest.php` — all green.
 
 ## Phase 4: Controller, Middleware & Routes (PR 2)
 
-- [ ] 4.1 Create `app/Http/Controllers/Student/ExamController.php` with 5 actions: `start`, `show`, `answer`, `submit`, `result`. Auth+role:STUDENT+subscription checks on start; idempotent `updateOrCreate` on answer; `gradeAttempt` on submit.
+- [x] 4.1 Create `app/Http/Controllers/Student/ExamController.php` with 5 actions: `start`, `show`, `answer`, `submit`, `result`. Auth+role:STUDENT+subscription checks on start; idempotent `updateOrCreate` on answer; `gradeAttempt` on submit.
   **Deps**: 2.1. **Verify**: `php artisan route:list --name=student.exam` shows 5 named routes.
-- [ ] 4.2 Create `app/Http/Middleware/CheckExamTimer.php`: compute remaining time; auto-submit (grade + redirect to result) if expired. Register `checkTimer` alias in `bootstrap/app.php`.
+- [x] 4.2 Create `app/Http/Middleware/CheckExamTimer.php`: compute remaining time; auto-submit (grade + redirect to result) if expired. Register `checkTimer` alias in `bootstrap/app.php`.
   **Deps**: 2.1. **Verify**: `php artisan tinker --execute="app('Illuminate\Contracts\Http\Kernel')->getMiddlewareGroups()"` confirms alias.
-- [ ] 4.3 Register 5 `student.exam.*` routes in `routes/web.php` behind `['auth','role:STUDENT']`; add `checkTimer` to take+answer routes.
+- [x] 4.3 Register 5 `student.exam.*` routes in `routes/web.php` behind `['auth','role:STUDENT']`; add `checkTimer` to take+answer routes.
   **Deps**: 4.1, 4.2. **Verify**: `php artisan route:list --path=examenes` lists start/take/answer/submit/result.
 
 ## Phase 5: Livewire Wizard (PR 2)
 
-- [ ] 5.1 Create `app/Livewire/Student/ExamStart.php` + `resources/views/livewire/student/exam/start.blade.php`: confirm screen, link to `student.exam.start`.
+- [x] 5.1 Create `app/Livewire/Student/ExamStart.php` + `resources/views/livewire/student/exam/start.blade.php`: confirm screen, link to `student.exam.start`.
   **Deps**: 4.3. **Verify**: `php artisan livewire:list` shows `student.exam-start`.
-- [ ] 5.2 Create `app/Livewire/Student/ExamTake.php` + `resources/views/livewire/student/exam/take.blade.php`: one-question wizard, radio/checkbox per type, countdown display, navigation, "Finalizar" on last question.
+- [x] 5.2 Create `app/Livewire/Student/ExamTake.php` + `resources/views/livewire/student/exam/take.blade.php`: one-question wizard, radio/checkbox per type, countdown display, navigation, "Finalizar" on last question.
   **Deps**: 4.3. **Verify**: `php artisan livewire:list` shows `student.exam-take`.
-- [ ] 5.3 Create `app/Livewire/Student/ExamResult.php` + `resources/views/livewire/student/exam/result.blade.php`: display "Tu calificación es: X / Y" from `score_obtained` / `exam.max_score`.
+- [x] 5.3 Create `app/Livewire/Student/ExamResult.php` + `resources/views/livewire/student/exam/result.blade.php`: display "Tu calificacion es: X / Y" from `score_obtained` / `exam.max_score`.
   **Deps**: 4.3. **Verify**: `php artisan livewire:list` shows `student.exam-result`.
 
 ## Phase 6: Dashboard Extension (PR 2)
 
-- [ ] 6.1 Extend `app/Livewire/Dashboard.php` + `resources/views/livewire/dashboard.blade.php`: query available exams (subscribed class exams without attempt) and completed exams (with score). Render "Exámenes disponibles" + "Exámenes completados" sections.
+- [x] 6.1 Extend `app/Livewire/Dashboard.php` + `resources/views/livewire/dashboard.blade.php`: query available exams (subscribed class exams without attempt) and completed exams (with score). Render "Examenes disponibles" + "Examenes completados" sections.
   **Deps**: 1.5, 4.3. **Verify**: `vendor/bin/pest tests/Feature/StudentDashboardTest.php` — existing + new scenarios pass.
 
 ## Phase 7: Integration Tests (PR 2)
 
-- [ ] 7.1 Write `tests/Feature/ExamTakingTest.php`: start (403 if taken/unsubscribed, 302 if fresh), answer idempotency, question advancement, submit→grade, result "X / Y", ungraded redirects to take.
+- [x] 7.1 Write `tests/Feature/ExamTakingTest.php`: start (403 if taken/unsubscribed, 302 if fresh), answer idempotency, question advancement, submit→grade, result "X / Y", ungraded redirects to take.
   **Deps**: 4.1, 5.2, 5.3. **Verify**: `vendor/bin/pest tests/Feature/ExamTakingTest.php` — all green.
-- [ ] 7.2 Write `tests/Feature/ExamTimerTest.php`: expired timer auto-submits on take + answer routes; browser-close resume auto-submits if timer elapsed.
+- [x] 7.2 Write `tests/Feature/ExamTimerTest.php`: expired timer auto-submits on take + answer routes; browser-close resume auto-submits if timer elapsed.
   **Deps**: 4.2, 4.3. **Verify**: `vendor/bin/pest tests/Feature/ExamTimerTest.php` — all green.
-- [ ] 7.3 Run full test suite: `vendor/bin/pest`. All existing 104+ tests plus new tests must pass. No regressions.
+- [x] 7.3 Run full test suite: `vendor/bin/pest`. All existing 104+ tests plus new tests must pass. No regressions.
 
 ## Phase 8: Documentation (PR 2)
 
-- [ ] 8.1 Update `README.md`: add exam engine section documenting student flow (dashboard→start→wizard→result), timer enforcement, and the grading rules.
+- [x] 8.1 Update `README.md`: add exam engine section documenting student flow (dashboard→start→wizard→result), timer enforcement, and the grading rules.
   **Deps**: 7.3 (all features verified). **Verify**: `Get-Content README.md | Select-String "Exam Engine"` returns a match.
