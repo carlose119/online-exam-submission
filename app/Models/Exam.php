@@ -36,4 +36,12 @@ class Exam extends Model
     {
         return $this->hasMany(Question::class)->orderBy('order')->orderBy('id');
     }
+
+    /**
+     * The attempts made by students for this exam.
+     */
+    public function studentAttempts(): HasMany
+    {
+        return $this->hasMany(StudentAttempt::class, 'exam_id');
+    }
 }

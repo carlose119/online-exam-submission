@@ -36,4 +36,12 @@ class Question extends Model
     {
         return $this->hasMany(AnswerOption::class)->orderBy('id');
     }
+
+    /**
+     * The student answers submitted for this question across all attempts.
+     */
+    public function studentAnswers(): HasMany
+    {
+        return $this->hasMany(StudentAnswer::class, 'question_id');
+    }
 }

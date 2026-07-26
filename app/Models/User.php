@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Hash;
 
 #[Fillable(['name', 'email', 'password', 'role', 'suspended_at'])]
@@ -51,5 +52,13 @@ class User extends Authenticatable
     public function subscribedClasses(): BelongsToMany
     {
         return $this->belongsToMany(SchoolClass::class, 'class_user', 'user_id', 'class_id')->withTimestamps();
+    }
+
+    /**
+     * The exam attempts made by this user.
+     */
+    public function studentAttempts(): HasMany
+    {
+        return $this->hasMany(StudentAttempt::class, 'student_id');
     }
 }
