@@ -200,8 +200,6 @@ The `.env` file has no `MAIL_MAILER` configured. Password reset and email verifi
 
 The following are out of scope for this slice and will be implemented in future changes:
 
-- **Exam taking UI**: The student-side exam wizard with one-question-at-a-time display, answer submission, and server-validated countdown timer.
-- **Grading engine**: Strict MCQ grading (all correct AND no incorrect selected = full points), score persistence, and instant result display.
 - **Reports**: PDF and Excel teacher reports via `barryvdh/laravel-dompdf` and `maatwebsite/excel`.
 - **Email verification**: Enable `MustVerifyEmail` on `User` once a mailer is configured.
 - **Profile editing and password change**: Routes are wired but profile editing is deferred.
@@ -216,8 +214,12 @@ The following are out of scope for this slice and will be implemented in future 
 | `tests/Feature/Auth/PasswordUpdateTest.php` | 2 | Password update, correct password required |
 | `tests/Feature/ClassInvitationFlowTest.php` | 6 | Join page: valid/invalid codes, guest link with `?redirect`, auth join form, Materials section |
 | `tests/Feature/StudentJoinClassTest.php` | 4 | Pivot creation + redirect, idempotent duplicate, 404 on nonexistent code, 302 unauthenticated |
-| `tests/Feature/StudentDashboardTest.php` | 4 | Auth gate, STUDENT role gate, cards render, empty state |
+| `tests/Feature/StudentDashboardTest.php` | 7 | Auth gate, STUDENT role gate, cards render, empty state, available exams, completed exams with scores |
 | `tests/Feature/ClassUserPivotTest.php` | 5 | Schema columns, UNIQUE constraint, cascade delete (class + user), relationship resolution with timestamps |
+| `tests/Feature/ExamGradingServiceTest.php` | 9 | SINGLE/MULTIPLE grading rules (correct, incorrect, blank, partial, extra), aggregate sum, idempotency |
+| `tests/Feature/StudentAttemptTest.php` | 7 | Model relationships, UNIQUE(student_id, exam_id), UNIQUE(answer combo), cascade delete, date casts |
+| `tests/Feature/ExamTakingTest.php` | 12 | Start (403 taken/unsubscribed, guest→login), answer idempotency/replace, submit→grade, result "X/Y", access control |
+| `tests/Feature/ExamTimerTest.php` | 6 | Timer expire auto-submit on take/answer routes, normal access, browser-close resume, no re-grade on finished |
 
 
 Teachers can create exams with questions and answer options via the Filament `/admin/exams` panel. Each exam belongs to a class and follows a strict 3-tier structure: **exam → questions → answer options**.
@@ -277,9 +279,63 @@ The Edit page includes a **Preview as student** header action that renders the f
 
 When deleting an exam, a confirmation modal warns: "This exam, its questions, and all answer options will be permanently deleted." All related rows are removed from the database in a single cascading operation.
 
-### Deferred Grading Engine
+## Exam Engine: Student Taking and Auto-Grading
 
-The grading engine that scores student submissions is **not implemented** in this slice. The builder creates exams and questions; the actual MCQ grading logic is deferred to a future change. The strict MCQ rule described above is the grading contract that future implementations must honor.
+The exam engine enables students to take exams through a one-question-at-a-time wizard with a strict server-enforced countdown timer and instant auto-grading.
+
+### Student Exam Flow
+
+1. **Dashboard** — "Examenes disponibles" lists all untaken exams from subscribed classes with an "Iniciar examen" button. "Examenes completados" shows past attempts with scores as "X / Y".
+2. **Start page** (`/examenes/{exam}/intentar`) — Confirms exam details (title, duration, max score, question count) and presents a "Comenzar examen" button. Creates a `StudentAttempt` record with `started_at=now()`.
+3. **Wizard** (`/examenes/{attempt}/tomar`) — Displays one question at a time. SINGLE questions show radio buttons; MULTIPLE questions show checkboxes. A JavaScript countdown timer displays the remaining time. Navigation: "Anterior" / "Siguiente" buttons. The last question shows "Finalizar examen".
+4. **Answering** — Answers are saved idempotently. Re-answering a question replaces the previous selection (delete old + insert new). The system advances to the next question automatically after saving.
+5. **Grading** — "Finalizar examen" calls `ExamGradingService::gradeAttempt` to compute the score using strict MCQ rules and sets `finished_at`. The student is redirected to the result page.
+6. **Result** (`/examenes/{attempt}/resultado`) — Displays "Tu calificacion es: X / Y" (score_obtained / max_score) with the completion date.
+
+### Timer Enforcement
+
+The countdown is computed **server-side** as `started_at + duration_minutes - now()`. A client-side JavaScript countdown displays the remaining time, but the server is the single source of truth.
+
+On every request to the take or answer routes, the `CheckExamTimer` middleware:
+- Computes the deadline: `started_at + exam.duration_minutes`
+- If `now() > deadline`: auto-submits (grades the attempt), sets `finished_at`, and redirects to the result page
+- This works even when the student closes the browser mid-exam and returns later — the first request after expiry auto-grades
+
+### Strict MCQ Rule
+
+Grading follows strict multiple-choice rules enforced at grading time (not in the exam builder):
+
+| Question Type | Correct Answer | Points |
+|--------------|----------------|--------|
+| **SINGLE** | Exactly the one correct option selected | Full points |
+| **SINGLE** | Incorrect option, or multiple options, or blank | 0 |
+| **MULTIPLE** | ALL correct options selected AND NO incorrect option selected | Full points |
+| **MULTIPLE** | Missing correct options, extra incorrect options, or blank | 0 |
+
+The service is idempotent — calling `gradeAttempt` twice returns the same score without recomputing.
+
+### 1-Attempt Constraint
+
+Each student can take each exam exactly once. A `UNIQUE(student_id, exam_id)` constraint on `student_attempts` enforces this. Attempting to start an already-taken exam returns HTTP 403.
+
+### Deferred Items
+
+The following are out of scope for this slice and will be implemented in future changes:
+
+- **Reports**: PDF and Excel teacher reports with per-student scores and question-level analytics.
+- **Email notifications**: Notify students when a new exam is available or when results are published.
+- **Re-takes**: Teacher-initiated re-take mechanism (delete existing attempt and allow a new one).
+- **Time extensions**: Per-student extra time for accessibility accommodations.
+
+### Test Coverage
+
+| File | Count | Covers |
+|------|-------|--------|
+| `tests/Feature/ExamGradingServiceTest.php` | 9 | SINGLE correct/incorrect/blank, MULTIPLE exact/extra/partial/blank, aggregate sum, idempotency |
+| `tests/Feature/StudentAttemptTest.php` | 7 | Relationships, UNIQUE constraints, cascade delete, date casts |
+| `tests/Feature/ExamTakingTest.php` | 12 | Start flow, answer idempotency/replace, submit→grade, result "X/Y", access control |
+| `tests/Feature/ExamTimerTest.php` | 6 | Auto-submit on take/answer expiry, normal access, browser-close resume, no re-grade |
+| `tests/Feature/StudentDashboardTest.php` | 7 | Auth/role gates, class cards, empty state, available exams, completed exams with scores |
 
 ## Running Tests
 
@@ -325,19 +381,41 @@ app/
 │       └── TeacherResource.php       # Teacher CRUD (create, edit, suspend, delete, temp password)
 ├── Http/
 │   ├── Controllers/
-│   │   └── JoinClassController.php   # Public class join page + Materials section
+│   │   ├── JoinClassController.php   # Public class join page + Materials section
+│   │   └── Student/
+│   │       └── ExamController.php    # Student exam flow (start, answer, submit)
 │   └── Middleware/
+│       ├── CheckExamTimer.php        # Server-side exam timer enforcement
 │       └── CheckRole.php             # Role-based access control (ADMIN, TEACHER)
+├── Livewire/
+│   ├── Dashboard.php                 # Student dashboard with classes, available/completed exams
+│   └── Student/
+│       ├── ExamStart.php             # Exam start confirmation screen
+│       ├── ExamTake.php              # One-question wizard with timer
+│       └── ExamResult.php            # Score display ("X / Y")
 ├── Models/
 │   ├── AnswerOption.php              # Eloquent model with question(), is_correct boolean cast
-│   ├── Exam.php                      # Eloquent model with classroom(), questions()
-│   ├── Question.php                  # Eloquent model with exam(), options(), QuestionType enum cast
-│   ├── SchoolClass.php               # Eloquent model with teacher(), studyMaterials(), exams()
+│   ├── Exam.php                      # Eloquent model with classroom(), questions(), studentAttempts()
+│   ├── Question.php                  # Eloquent model with exam(), options(), studentAnswers(), QuestionType enum cast
+│   ├── SchoolClass.php               # Eloquent model with teacher(), studyMaterials(), exams(), students()
+│   ├── StudentAnswer.php             # Eloquent model with attempt(), question(), option()
+│   ├── StudentAttempt.php            # Eloquent model with student(), exam(), answers()
 │   ├── StudyMaterial.php             # Eloquent model with classroom(), extra_metadata JSON cast
-│   └── User.php                      # Eloquent model with role enum, suspended_at, password hashing
+│   └── User.php                      # Eloquent model with role enum, suspended_at, subscribedClasses(), studentAttempts()
+├── Services/
+│   └── ExamGradingService.php        # Strict MCQ grading with idempotent gradeAttempt()
 └── Providers/
     └── Filament/
         └── AdminPanelProvider.php    # Single panel at /admin, role middleware
+
+resources/views/
+├── livewire/
+│   ├── dashboard.blade.php           # Student dashboard view
+│   └── student/
+│       └── exam/
+│           ├── start.blade.php       # Exam start confirmation page
+│           ├── take.blade.php        # Wizard: question, timer, navigation
+│           └── result.blade.php      # Score "X / Y" display
 
 database/
 ├── factories/
@@ -356,8 +434,12 @@ tests/
 │   ├── AnswerOptionModelTest.php
 │   ├── ClassInvitationFlowTest.php
 │   ├── ClassResourceTest.php
+│   ├── ExamGradingServiceTest.php
 │   ├── ExamResourceTest.php
+│   ├── ExamTakingTest.php
+│   ├── ExamTimerTest.php
 │   ├── QuestionModelTest.php
+│   ├── StudentAttemptTest.php
 │   ├── StudyMaterialPublicViewTest.php
 │   ├── StudyMaterialResourceTest.php
 │   └── TeacherResourceTest.php
