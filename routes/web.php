@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\JoinClassController;
+use App\Http\Controllers\ReportDownloadController;
 use App\Http\Controllers\Student\ExamController;
 use App\Livewire\Dashboard;
 use App\Livewire\Student\ExamResult;
@@ -39,3 +40,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+// Report download route (auth + role:admin,teacher only)
+Route::get('/admin/reports/download/{filename}', [ReportDownloadController::class, 'download'])
+    ->name('reports.download')
+    ->middleware(['auth', 'role:ADMIN,TEACHER']);
