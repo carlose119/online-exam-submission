@@ -408,6 +408,53 @@ The following are out of scope for this slice and will be implemented in future 
 | `tests/Feature/ClassReportTest.php` | 14 | Access control (teacher/admin/student/guest), sync PDF/Excel, pass rate at 60%, download route auth + validation |
 | `tests/Feature/GenerateClassReportPdfJobTest.php` | 8 | Queue dispatch (Queue::fake), file storage, database notification, graceful handling of missing models |
 
+## Live Class Materialization: Meeting Scheduling
+
+Teachers can schedule live meetings for their classes; students see upcoming and live sessions on their dashboard with a "Join" button that opens the meeting URL in a new tab.
+
+### Scheduling a Meeting (Teacher)
+
+1. Navigate to `/admin/meetings` and click **Create**.
+2. Select a class (only the teacher's own classes appear; admin sees all).
+3. Fill in meeting details: title, scheduled date/time, duration (default 60 min), meeting URL (optional Google Meet / Zoom link), and an optional agenda (RichEditor).
+4. Submit. The meeting appears in the list, sorted by scheduled time (nearest first).
+
+The resource list shows title, class, scheduled date/time, and a "Join" button. The "Join" button is only enabled when the meeting URL is set AND the current time is within ±15 minutes of the scheduled start time.
+
+### How Students See Meetings (Student Dashboard)
+
+The student dashboard (`/dashboard`) now includes a "Próximas clases en vivo" section below the completed exams:
+
+- **Upcoming meetings**: The next 5 meetings from subscribed classes, ordered by scheduled time ascending.
+- **"Live now!" indicator**: A pulsing red badge shown when the meeting is within its ±15 min live window.
+- **"Join" button**: A green "Unirse a clase" button that opens the meeting URL in a new tab — only visible when the meeting is within the live window AND has a meeting URL set.
+- **Empty state**: "No hay clases en vivo programadas. Tu teacher publicará las próximas sesiones aquí." when no upcoming meetings exist.
+- **Subscription isolation**: Students only see meetings from classes they are subscribed to.
+- **Past meetings**: Meetings whose scheduled time has passed more than 15 minutes ago are not shown.
+
+### Meeting Model
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | bigint PK | Auto-increment |
+| `class_id` | FK → classes | `cascadeOnDelete()` |
+| `title` | string(255) | Meeting name |
+| `scheduled_at` | timestamp | UTC storage; indexed |
+| `duration_minutes` | integer | Default 60 |
+| `meeting_url` | text nullable | Google Meet / Zoom link |
+| `agenda` | text nullable | RichEditor content |
+
+### Deferred Items
+
+The following are out of scope for this slice and will be implemented in future changes:
+
+- **Recurring meetings**: RRULE-based recurrence ("every Monday 18:00").
+- **iCal export**: `.ics` file download for calendar integration.
+- **Google/Outlook calendar integration**: `webcal://` subscription endpoints.
+- **Recording/replay**: Post-meeting video recordings.
+- **Attendance tracking**: Who joined and when.
+- **Email notifications**: No mailer configured; Dashboard "Live now!" indicator is the sole reminder surface.
+
 ## Running Tests
 
 ```bash
