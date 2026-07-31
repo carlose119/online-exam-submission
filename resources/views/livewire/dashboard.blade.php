@@ -78,6 +78,38 @@
             border: none;
             cursor: pointer;
         }
+        .live-badge {
+            display: inline-block;
+            background: #ef4444;
+            color: #fff;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .join-btn {
+            display: inline-block;
+            background: #16a34a;
+            color: #fff;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .join-btn:hover {
+            background: #15803d;
+        }
+        .meeting-meta {
+            color: #64748b;
+            font-size: 0.8125rem;
+            margin: 0.25rem 0;
+        }
     </style>
 
     <div class="logout">
@@ -164,4 +196,38 @@
             </div>
         </div>
     @endif
+
+    {{-- Próximas clases en vivo --}}
+    <div style="margin-top:2.5rem;margin-bottom:1rem;">
+        <h2 style="font-size:1.25rem;margin:0 0 1rem 0;">Próximas clases en vivo</h2>
+        @if ($upcomingMeetings->isEmpty())
+            <div class="card" style="text-align:center;padding:1.5rem;">
+                <p style="color:#64748b;margin:0;">
+                    No hay clases en vivo programadas. Tu teacher publicará las próximas sesiones aquí.
+                </p>
+            </div>
+        @else
+            <div class="grid">
+                @foreach ($upcomingMeetings as $meeting)
+                    <div class="card">
+                        <h3>{{ $meeting->title }}</h3>
+                        <p class="meeting-meta">
+                            {{ $meeting->classroom->title }}
+                        </p>
+                        <p class="meeting-meta">
+                            {{ $meeting->scheduled_at->diffForHumans() }} &mdash; {{ $meeting->scheduled_at->format('M j, g:i A T') }}
+                        </p>
+                        @if ($meeting->isLive())
+                            <span class="live-badge">Live now!</span>
+                            @if ($meeting->meeting_url)
+                                <a href="{{ $meeting->meeting_url }}" target="_blank" rel="noopener" class="join-btn" style="margin-top:0.5rem;">
+                                    Unirse a clase
+                                </a>
+                            @endif
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
 </div>

@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Exam;
 use App\Models\StudentAttempt;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -40,10 +41,25 @@ class Dashboard extends Component
             ->orderByDesc('finished_at')
             ->get();
 
+        // Upcoming live meetings: next 5 from subscribed classes.
+        // Include meetings within the ±15 min live window (not just strictly future).
+        $upcomingMeetings = $student->subscribedClasses()
+            ->with(['meetings' => function ($q) {
+                $q->where('scheduled_at', '>=', now()->subMinutes(15))
+                    ->orderBy('scheduled_at', 'asc')
+                    ->limit(5);
+            }])
+            ->get()
+            ->flatMap(fn ($class) => $class->meetings)
+            ->sortBy('scheduled_at')
+            ->take(5)
+            ->values();
+
         return view('livewire.dashboard', [
             'classes' => $classes,
             'availableExams' => $availableExams,
             'completedAttempts' => $completedAttempts,
+            'upcomingMeetings' => $upcomingMeetings,
         ]);
     }
 }

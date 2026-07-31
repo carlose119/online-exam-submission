@@ -12,6 +12,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Actions\DeleteAction;
@@ -28,7 +29,9 @@ class ClassResource extends Resource
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        return parent::getEloquentQuery()->where('teacher_id', Auth::id());
+        return parent::getEloquentQuery()
+            ->where('teacher_id', Auth::id())
+            ->withCount('meetings');
     }
 
     public static function form(Schema $schema): Schema
@@ -69,6 +72,9 @@ class ClassResource extends Resource
                     ->badge()
                     ->copyable()
                     ->searchable(),
+                BadgeColumn::make('meetings_count')
+                    ->label('Meetings')
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
