@@ -36,21 +36,21 @@ Chain strategy: stacked-to-main (PR #1 → main ✅, then PR #2 → main)
 
 ## Phase 4: Filament Resource & Page (PR 2)
 
-- [ ] 4.1 Create `app/Filament/Resources/ClassReportResource.php`: `$model=SchoolClass`, TEACHER→own/ADMIN→all scope; table: title,teacher,counts; "View Report" action. Verify: route shows via `php artisan route:list`.
-- [ ] 4.2 Create `app/Filament/Resources/ClassReportResource/Pages/ClassReport.php`: `Page+InteractsWithRecord`, header actions gating sync vs queue dispatch. Verify: class resolves.
-- [ ] 4.3 Create class-report page view: class title, teacher, per-exam drill-down table, overall stats footer. Verify: file exists.
+- [x] 4.1 Create `app/Filament/Resources/ClassReportResource.php`: `$model=SchoolClass`, TEACHER→own/ADMIN→all scope; table: title,teacher,counts; "View Report" action. Verify: route shows via `php artisan route:list`.
+- [x] 4.2 Create `app/Filament/Resources/ClassReportResource/Pages/ClassReport.php`: `Page+InteractsWithRecord`, header actions gating sync vs queue dispatch. Verify: class resolves.
+- [x] 4.3 Create class-report page view: class title, teacher, per-exam drill-down table, overall stats footer. Verify: file exists.
 
 ## Phase 5: Download Route (PR 2)
 
-- [ ] 5.1 Create `app/Http/Controllers/ReportDownloadController.php`: `download($filename)` with `basename()` path-traversal guard, `Storage::disk('reports')->download()`. Verify: class exists.
-- [ ] 5.2 Add report download route to `routes/web.php`: `Route::get('/admin/reports/download/{filename}',[...])->middleware(['auth','role:admin,teacher'])`. Verify: route listed via `php artisan route:list`.
+- [x] 5.1 Create `app/Http/Controllers/ReportDownloadController.php`: `download($filename)` with `basename()` path-traversal guard, `Storage::disk('reports')->download()`. Verify: class exists.
+- [x] 5.2 Add report download route to `routes/web.php`: `Route::get('/admin/reports/download/{filename}',[...])->middleware(['auth','role:admin,teacher'])`. Verify: route listed via `php artisan route:list`.
 
 ## Phase 6: Tests (PR 2)
 
 - [x] 6.1 Create `tests/Feature/ClassReportServiceTest.php`: `RefreshDatabase`, avg/pass-rate/median, 100% pass, 0% pass, empty class, sort. Covers service-data, pass-rate-at-60%, arithmetic-correctness scenarios. Verify: `vendor/bin/pest` green.
-- [ ] 6.2 Create `tests/Feature/GenerateClassReportPdfJobTest.php`: `Queue::fake()`,`Storage::fake()`, dispatch+storage+notification assertions. Covers job spec scenarios. Verify: `vendor/bin/pest` green.
-- [ ] 6.3 Create `tests/Feature/ClassReportTest.php`: `actingAs()` teacher/admin/student, sync PDF/Excel, threshold, cross-teacher 404, download auth. Covers teacher-class-report spec (15 scenarios). Verify: `vendor/bin/pest` green.
+- [x] 6.2 Create `tests/Feature/GenerateClassReportPdfJobTest.php`: `Queue::fake()`,`Storage::fake()`, dispatch+storage+notification assertions. Covers job spec scenarios. Verify: `vendor/bin/pest` green.
+- [x] 6.3 Create `tests/Feature/ClassReportTest.php`: `actingAs()` teacher/admin/student, sync PDF/Excel, threshold, cross-teacher 404, download auth. Covers teacher-class-report spec (15 scenarios). Verify: `vendor/bin/pest` green.
 
 ## Phase 7: Documentation (PR 2)
 
-- [ ] 7.1 Update `README.md`: add Reports section after Exam Engine — usage, sync/queue, pass rate, access control, deferred items. Verify: `Select-String -Path README.md -Pattern 'Reports'`.
+- [x] 7.1 Update `README.md`: add Reports section after Exam Engine — usage, sync/queue, pass rate, access control, deferred items. Verify: `Select-String -Path README.md -Pattern 'Reports'`.
