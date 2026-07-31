@@ -48,7 +48,7 @@ class MeetingResource extends Resource
             ->schema([
                 Select::make('class_id')
                     ->label('Class')
-                    ->options(fn () => SchoolClass::where('teacher_id', Auth::id())->pluck('title', 'id')->toArray())
+                    ->options(fn () => SchoolClass::when(Auth::user()?->role !== 'ADMIN', fn ($q) => $q->where('teacher_id', Auth::id()))->pluck('title', 'id')->toArray())
                     ->searchable()
                     ->required(),
 
@@ -94,7 +94,9 @@ class MeetingResource extends Resource
                 TextColumn::make('scheduled_at')
                     ->label('Scheduled')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->badge()
+                    ->color(fn ($state): string => $state && $state < now() ? 'gray' : 'success'),
 
                 BadgeColumn::make('duration_minutes')
                     ->label('Duration')

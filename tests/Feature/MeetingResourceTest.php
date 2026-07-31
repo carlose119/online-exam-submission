@@ -1,11 +1,13 @@
 <?php
 
 use App\Filament\Resources\MeetingResource;
+use App\Filament\Resources\MeetingResource\Pages\CreateMeeting;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
 // (a) Teacher query scope shows only their own meetings
@@ -555,4 +557,35 @@ it('isPast returns true when scheduled_at is before now', function () {
     expect($future->isPast())->toBeFalse();
 
     Carbon::setTestNow();
+});
+
+// ---------------------------------------------------------------------------
+// (r) Invalid meeting_url is rejected by form validation
+// ---------------------------------------------------------------------------
+
+it('rejects invalid meeting url during form submission', function () {
+    $teacher = User::create([
+        'name' => 'UrlVal Teacher',
+        'email' => 'urlval@test.com',
+        'password' => 'password',
+        'role' => 'TEACHER',
+    ]);
+
+    $class = SchoolClass::create([
+        'title' => 'UrlVal Class',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => 'URLVAL01',
+    ]);
+
+    Auth::login($teacher);
+
+    Livewire::test(CreateMeeting::class)
+        ->fillForm([
+            'class_id' => $class->id,
+            'title' => 'Bad URL Meeting',
+            'scheduled_at' => now()->addHour(),
+            'meeting_url' => 'not-a-url',
+        ])
+        ->call('create')
+        ->assertHasErrors(['data.meeting_url']);
 });
