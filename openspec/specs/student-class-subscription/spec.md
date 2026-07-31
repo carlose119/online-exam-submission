@@ -14,7 +14,7 @@ Authenticated students subscribe to classes via the public join page. The `class
 | 4 | Idempotent Join | Duplicate join MUST be a graceful no-op: no duplicate row, no error, same redirect. |
 | 5 | Join Edge Cases | POST with nonexistent code MUST return 404. POST without auth MUST return 302 to `/login`. |
 | 6 | Model Relationships | `SchoolClass::students()` and `User::subscribedClasses()` MUST use belongsToMany with `withTimestamps()`. |
-| 7 | Dashboard | `/dashboard` MUST require `auth` + `role:STUDENT`. Lists subscribed classes as cards (title, description, #materials, #exams). Empty state when zero subscriptions. Non-STUDENT denied. |
+| 7 | Dashboard | `/dashboard` MUST require `auth` + `role:STUDENT`. Lists subscribed classes as cards (title, description, #materials, #exams). MUST display "Exámenes disponibles" section: exams from subscribed classes where no StudentAttempt exists for the authenticated student, each with an "Iniciar examen" link to `student.exam.start`. MUST display "Exámenes completados" section: exams with a StudentAttempt for the student, showing "X / Y" where X=score_obtained and Y=exam.max_score. Empty state when zero subscriptions. Non-STUDENT denied. (Extended in exam-engine.) |
 
 ### Scenario: Pivot table schema and cascade
 
@@ -93,3 +93,15 @@ Authenticated students subscribe to classes via the public join page. The `class
 - GIVEN authenticated TEACHER
 - WHEN navigating to `/dashboard`
 - THEN access denied via `role:STUDENT` middleware (403 or redirect)
+
+### Scenario: Dashboard shows available exams (ADDED in exam-engine)
+
+- GIVEN authenticated STUDENT subscribed to "Math" class that has exam "Quiz 1" with no StudentAttempt
+- WHEN `/dashboard` loads
+- THEN "Exámenes disponibles" section lists "Quiz 1" with "Iniciar examen" link
+
+### Scenario: Dashboard shows completed exams with scores (ADDED in exam-engine)
+
+- GIVEN authenticated STUDENT has graded attempt for "Quiz 1" with score_obtained=10 and exam.max_score=15
+- WHEN `/dashboard` loads
+- THEN "Exámenes completados" section shows "Quiz 1" with "10 / 15"
