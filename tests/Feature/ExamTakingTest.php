@@ -7,6 +7,7 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -397,4 +398,146 @@ it('result page redirects to take when attempt is ungraded', function () {
     // The component redirects via Livewire; since we're making a raw HTTP
     // request, the redirect happens server-side via the mount method.
     $response->assertRedirect(route('student.exam.take', $attempt));
+});
+
+// ---------------------------------------------------------------------------
+// Answer: cross-student ownership check → 403
+// ---------------------------------------------------------------------------
+
+it('denies answer for attempt belonging to another student', function () {
+    $data = seedExamTaking();
+
+    $other = User::create([
+        'name' => 'Other Student 2',
+        'email' => 'other2@test.com',
+        'password' => 'password',
+        'role' => 'STUDENT',
+    ]);
+    $other->subscribedClasses()->attach($data['class']->id);
+
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+
+    $q1 = $data['questions'][0];
+    $correctOption = $q1->options()->where('is_correct', true)->first();
+
+    $response = $this->actingAs($other)
+        ->post(route('student.exam.answer', [
+            'attempt' => $attempt,
+            'question' => $q1,
+        ]), [
+            'options' => [$correctOption->id],
+        ]);
+
+    $response->assertForbidden();
+});
+
+// ---------------------------------------------------------------------------
+// Submit: cross-student ownership check → 403
+// ---------------------------------------------------------------------------
+
+it('denies submit for attempt belonging to another student', function () {
+    $data = seedExamTaking();
+
+    $other = User::create([
+        'name' => 'Other Student 3',
+        'email' => 'other3@test.com',
+        'password' => 'password',
+        'role' => 'STUDENT',
+    ]);
+    $other->subscribedClasses()->attach($data['class']->id);
+
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+
+    $response = $this->actingAs($other)
+        ->post(route('student.exam.submit', $attempt));
+
+    $response->assertForbidden();
+});
+
+// ---------------------------------------------------------------------------
+// Livewire: ExamStart::start does not throw TypeError (fix verification)
+// ---------------------------------------------------------------------------
+
+it('ExamStart start action redirects without TypeError', function () {
+    $data = seedExamTaking();
+
+    Auth::login($data['student']);
+
+    $component = Livewire::test(\App\Livewire\Student\ExamStart::class, ['exam' => $data['exam']]);
+
+    // Calling start() should not throw TypeError after the return-type fix.
+    $component->call('start');
+
+    $component->assertRedirect();
+
+    expect(StudentAttempt::where('student_id', $data['student']->id)
+        ->where('exam_id', $data['exam']->id)
+        ->exists())->toBeTrue();
+});
+
+// ---------------------------------------------------------------------------
+// Livewire: ExamTake::saveAndNext does not throw TypeError (fix verification)
+// ---------------------------------------------------------------------------
+
+it('ExamTake saveAndNext action redirects without TypeError', function () {
+    $data = seedExamTaking();
+
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+
+    Auth::login($data['student']);
+
+    $component = Livewire::test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt]);
+
+    // Calling saveAndNext should redirect without TypeError after the return-type fix.
+    $component->call('saveAndNext');
+
+    $component->assertRedirect();
+});
+
+// ---------------------------------------------------------------------------
+// Livewire: ExamTake::finalize does not throw TypeError (fix verification)
+// ---------------------------------------------------------------------------
+
+it('ExamTake finalize action redirects without TypeError', function () {
+    $data = seedExamTaking();
+
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+
+    // Answer Q1 correctly so finalize has something to grade.
+    $q1 = $data['questions'][0];
+    $correctOption = $q1->options()->where('is_correct', true)->first();
+    StudentAnswer::create([
+        'student_attempt_id' => $attempt->id,
+        'question_id' => $q1->id,
+        'answer_option_id' => $correctOption->id,
+    ]);
+
+    Auth::login($data['student']);
+
+    $component = Livewire::test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt]);
+
+    // Calling finalize should redirect to result without TypeError after the return-type fix.
+    $component->call('finalize');
+
+    $component->assertRedirect();
+
+    $attempt->refresh();
+    expect($attempt->finished_at)->not->toBeNull();
+    expect((float) $attempt->score_obtained)->toBeGreaterThan(0);
 });

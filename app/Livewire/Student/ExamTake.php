@@ -108,7 +108,7 @@ class ExamTake extends Component
      * Save the current answer and advance to the next question.
      * Delegates to the HTTP POST route so CheckExamTimer middleware runs.
      */
-    public function saveAndNext(): \Illuminate\Http\RedirectResponse
+    public function saveAndNext()
     {
         $question = $this->questions[$this->currentIndex] ?? null;
         if (! $question) {
@@ -155,7 +155,7 @@ class ExamTake extends Component
     /**
      * Finalize the exam — grade and redirect to result.
      */
-    public function finalize(): \Illuminate\Http\RedirectResponse
+    public function finalize()
     {
         // Persist any unsaved answer for the current question first.
         $currentQuestion = $this->questions[$this->currentIndex] ?? null;

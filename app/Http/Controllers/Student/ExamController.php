@@ -52,6 +52,10 @@ class ExamController extends Controller
      */
     public function show(StudentAttempt $attempt): array
     {
+        if ($attempt->student_id !== Auth::id()) {
+            abort(403);
+        }
+
         $attempt->load('exam.questions.options');
 
         return [
@@ -71,6 +75,10 @@ class ExamController extends Controller
      */
     public function answer(Request $request, StudentAttempt $attempt, Question $question): RedirectResponse
     {
+        if ($attempt->student_id !== Auth::id()) {
+            abort(403);
+        }
+
         // Guard: question must belong to the attempt's exam.
         if ($question->exam_id !== $attempt->exam_id) {
             abort(404);
@@ -118,6 +126,10 @@ class ExamController extends Controller
      */
     public function submit(Request $request, StudentAttempt $attempt): RedirectResponse
     {
+        if ($attempt->student_id !== Auth::id()) {
+            abort(403);
+        }
+
         $service = new ExamGradingService();
         $service->gradeAttempt($attempt);
 
@@ -133,6 +145,10 @@ class ExamController extends Controller
      */
     public function result(StudentAttempt $attempt): array
     {
+        if ($attempt->student_id !== Auth::id()) {
+            abort(403);
+        }
+
         if ($attempt->finished_at === null) {
             // If not yet graded, redirect to the take page.
             // (The Livewire component will handle this via its mount method.)

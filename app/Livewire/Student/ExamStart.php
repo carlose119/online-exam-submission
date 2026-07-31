@@ -32,7 +32,7 @@ class ExamStart extends Component
     /**
      * Create the attempt and redirect to the take page.
      */
-    public function start(): \Illuminate\Http\RedirectResponse
+    public function start()
     {
         $attempt = StudentAttempt::create([
             'student_id' => Auth::id(),
