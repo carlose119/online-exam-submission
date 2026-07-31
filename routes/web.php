@@ -44,4 +44,5 @@ Route::middleware('auth')->group(function () {
 // Report download route (auth + role:admin,teacher only)
 Route::get('/admin/reports/download/{filename}', [ReportDownloadController::class, 'download'])
     ->name('reports.download')
+    ->where('filename', '.*')
     ->middleware(['auth', 'role:ADMIN,TEACHER']);

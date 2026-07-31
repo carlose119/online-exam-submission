@@ -14,7 +14,7 @@ class ReportDownloadController extends Controller
      * Only authenticated ADMIN and TEACHER users can access this route
      * (enforced via the `auth` + `role:admin,teacher` middleware on the route).
      */
-    public function download(string $filename): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function download(string $filename): \Symfony\Component\HttpFoundation\StreamedResponse|\Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         // Path-traversal guard: ensure filename contains no directory separators.
         if ($filename !== basename($filename)) {
