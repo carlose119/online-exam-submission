@@ -41,6 +41,14 @@ class SchoolClass extends Model
     }
 
     /**
+     * Live meetings scheduled for this class.
+     */
+    public function meetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class, 'class_id');
+    }
+
+    /**
      * Students subscribed to this class.
      */
     public function students(): BelongsToMany
