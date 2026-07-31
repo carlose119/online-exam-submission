@@ -322,7 +322,7 @@ Each student can take each exam exactly once. A `UNIQUE(student_id, exam_id)` co
 
 The following are out of scope for this slice and will be implemented in future changes:
 
-- **Reports**: PDF and Excel teacher reports with per-student scores and question-level analytics.
+- ~~**Reports**: PDF and Excel teacher reports with per-student scores and question-level analytics.~~ **Implemented!** See [Reports](#reports-pdf--excel-exports-for-exams) below.
 - **Email notifications**: Notify students when a new exam is available or when results are published.
 - **Re-takes**: Teacher-initiated re-take mechanism (delete existing attempt and allow a new one).
 - **Time extensions**: Per-student extra time for accessibility accommodations.
@@ -336,6 +336,77 @@ The following are out of scope for this slice and will be implemented in future 
 | `tests/Feature/ExamTakingTest.php` | 12 | Start flow, answer idempotency/replace, submit→grade, result "X/Y", access control |
 | `tests/Feature/ExamTimerTest.php` | 6 | Auto-submit on take/answer expiry, normal access, browser-close resume, no re-grade |
 | `tests/Feature/StudentDashboardTest.php` | 7 | Auth/role gates, class cards, empty state, available exams, completed exams with scores |
+
+## Reports: PDF + Excel Exports for Exams
+
+Teachers and admins can generate **per-class reports** with exam statistics, student drill-downs, and PDF/Excel exports via the Filament `/admin/class-reports` panel.
+
+### Access Control
+
+| Role | Scope |
+|------|-------|
+| **TEACHER** | Sees only their own classes (scoped by `teacher_id`) |
+| **ADMIN** | Sees all classes across all teachers |
+| **STUDENT** | Denied via `CheckRole:ADMIN,TEACHER` middleware |
+
+### How to Generate a Report
+
+1. Navigate to `/admin/class-reports` and find the class in the table (columns: title, teacher, # exams, # students, # attempts).
+2. Click **View Report** to open the per-class drill-down page:
+   - **Class header**: title, teacher name, description
+   - **Overall stats cards**: total attempts, average score, pass rate
+   - **Per-exam drill-down**: each exam shows title, max score, attempts count, average score, pass rate, and median — expand to see individual student results (name, score "X / Y", completion date)
+3. Click **Download PDF** or **Download Excel** to export the report.
+
+### Sync vs Queue Behavior
+
+The generation path is determined by `config('reports.sync_threshold')` (default: **100** attempts):
+
+| Total Attempts | Path | Behavior |
+|---------------|------|----------|
+| `< 100` | **Synchronous** | File generated immediately and returned as a download |
+| `>= 100` | **Queued** | `GenerateClassReportPdf` or `GenerateClassReportExcel` job dispatched to the `database` queue; a Filament notification with a download link is sent to the user when complete |
+
+### Pass Rate Calculation
+
+An attempt passes when `score_obtained >= config('reports.pass_rate_threshold') * exam.max_score`. The default threshold is **0.6** (60%). Pass rate per exam is `(passing / total) * 100%`, rounded to 2 decimal places.
+
+Configuration in `config/reports.php`:
+
+```php
+'sync_threshold'     => env('REPORTS_SYNC_THRESHOLD', 100),
+'pass_rate_threshold' => env('REPORTS_PASS_RATE_THRESHOLD', 0.6),
+'storage_disk'       => env('REPORTS_STORAGE_DISK', 'reports'),
+'storage_path'       => env('REPORTS_STORAGE_PATH', 'reports'),
+```
+
+### Download Route
+
+Generated files are stored in `storage/app/reports/` and served via:
+
+```
+GET /admin/reports/download/{filename}
+```
+
+Behind `auth` + `role:ADMIN,TEACHER` middleware. Filename validation prevents path-traversal attacks.
+
+### Deferred Items
+
+The following are out of scope for this slice and will be implemented in future changes:
+
+- **Per-student report**: Individual student performance reports across all exams in a class.
+- **Email notifications**: Email the generated PDF/Excel as an attachment.
+- **Scheduled reports**: Cron-triggered report generation (weekly/monthly).
+- **Custom report builder**: Teacher-selectable columns, date ranges, and filters.
+- **Charts and visualizations**: Bar charts, pass/fail pie charts, score distribution histograms.
+
+### Test Coverage
+
+| File | Count | Covers |
+|------|-------|--------|
+| `tests/Feature/ClassReportServiceTest.php` | 13 | Stats arithmetic (avg, pass rate, median), 100%/0% pass, empty class, sort order, teacher name |
+| `tests/Feature/ClassReportTest.php` | 14 | Access control (teacher/admin/student/guest), sync PDF/Excel, pass rate at 60%, download route auth + validation |
+| `tests/Feature/GenerateClassReportPdfJobTest.php` | 8 | Queue dispatch (Queue::fake), file storage, database notification, graceful handling of missing models |
 
 ## Running Tests
 
@@ -359,6 +430,9 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 | `tests/Feature/ExamResourceTest.php` | 10 | CRUD query scope, cascade delete, form rendering, class Select scoping, max_score integer, max_score sum-from-questions, question ordering, questions_count withCount, type-switch, form renders |
 | `tests/Feature/QuestionModelTest.php` | 3 | Question→exam & options relationships, QuestionType enum cast, AnswerOption is_correct boolean cast |
 | `tests/Feature/AnswerOptionModelTest.php` | 3 | AnswerOption→question relationship, is_correct boolean cast, DB persistence as integer |
+| `tests/Feature/ClassReportServiceTest.php` | 13 | Stats arithmetic (avg, pass rate, median), 100%/0% pass, empty class, sort order |
+| `tests/Feature/ClassReportTest.php` | 14 | Access control (teacher/admin/student/guest), sync PDF/Excel, pass rate, download route auth + validation |
+| `tests/Feature/GenerateClassReportPdfJobTest.php` | 8 | Queue dispatch (Queue::fake), file storage, database notification, graceful handling of missing models |
 | `tests/Feature/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 | `tests/Unit/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 
