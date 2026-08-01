@@ -113,6 +113,7 @@
     </style>
 
     <div class="logout">
+        <a href="{{ route('profile.show') }}" style="color:#2563eb;text-decoration:none;font-size:0.875rem;margin-right:1rem;">Mi perfil</a>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit">Log out</button>

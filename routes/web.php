@@ -4,6 +4,7 @@ use App\Http\Controllers\JoinClassController;
 use App\Http\Controllers\ReportDownloadController;
 use App\Http\Controllers\Student\ExamController;
 use App\Livewire\Dashboard;
+use App\Livewire\StudentProfile;
 use App\Livewire\Student\ExamResult;
 use App\Livewire\Student\ExamStart;
 use App\Livewire\Student\ExamTake;
@@ -34,12 +35,10 @@ Route::middleware(['auth', 'role:STUDENT'])->group(function () {
     Route::get('/examenes/{attempt}/resultado', ExamResult::class)->name('student.exam.result');
 });
 
-// Profile routes (Breeze scaffold — profile editing is deferred)
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
-});
+// Student profile (read-only, replaces Breeze profile routes)
+Route::get('/profile', StudentProfile::class)
+    ->name('profile.show')
+    ->middleware(['auth', 'role:STUDENT']);
 
 // Report download route (auth + role:admin,teacher only)
 Route::get('/admin/reports/download/{filename}', [ReportDownloadController::class, 'download'])
