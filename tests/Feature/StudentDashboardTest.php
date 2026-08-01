@@ -573,3 +573,23 @@ it('dashboard shows join button for live meetings with url set', function () {
 
     Carbon::setTestNow();
 });
+
+// ---------------------------------------------------------------------------
+// Dashboard — Mi perfil link
+// ---------------------------------------------------------------------------
+
+it('dashboard displays Mi perfil link', function () {
+    $student = User::create([
+        'name'     => 'Link Student',
+        'email'    => 'link-dash@test.com',
+        'password' => 'password',
+        'role'     => 'STUDENT',
+    ]);
+
+    $response = $this->actingAs($student)
+        ->get(route('dashboard'));
+
+    $response->assertStatus(200);
+    $response->assertSee('Mi perfil');
+    $response->assertSee(route('profile.show'));
+});
