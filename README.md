@@ -455,6 +455,50 @@ The following are out of scope for this slice and will be implemented in future 
 - **Attendance tracking**: Who joined and when.
 - **Email notifications**: No mailer configured; Dashboard "Live now!" indicator is the sole reminder surface.
 
+## Student Profile
+
+Students have a read-only profile page at `/profile` (named `profile.show`), accessible from the dashboard "Mi perfil" link and the Breeze navigation dropdown.
+
+### Access Control
+
+| Role | Access |
+|------|--------|
+| **STUDENT** | Full access (HTTP 200) |
+| **TEACHER** | Forbidden (HTTP 403) |
+| **ADMIN** | Forbidden (HTTP 403) |
+| **Guest** | Redirected to `/login` |
+
+### Profile Data Display
+
+The profile page shows:
+
+- **User identity header**: name (as `<h1>`), email, and a "STUDENT" role badge.
+- **Subscribed classes**: rendered as a grid of cards, each showing:
+  - Class title
+  - Teacher name ("con {teacher.name}")
+  - Joined-at timestamp: relative (`diffForHumans()`) + calendar (`format('M j, Y')`)
+  - Three count badges: materials, exams, and live meetings
+- **Empty state**: "Aún no te has unido a ninguna clase. Pide un link de invitación a tu teacher." with a books emoji when the student has zero subscriptions.
+
+### Technical Details
+
+- **Component**: `App\Livewire\StudentProfile` (full-page Livewire v4 component with `#[Layout('layouts.app')]`)
+- **View**: `resources/views/livewire/student-profile.blade.php` (inline `<style>` block matching the dashboard pattern)
+- **Data query**: `User::subscribedClasses()` → `orderByPivot('created_at','desc')` → `withCount(['studyMaterials','exams','meetings'])` → `with('teacher')`
+- **Route**: Added to `routes/web.php`; the Breeze `profile.edit`/`profile.update`/`profile.destroy` routes were removed since profile editing is deferred.
+
+### Deferred Items
+
+The following are explicitly out of scope for this change and will be implemented in future changes:
+
+- **Exam history**: List of completed exams with scores.
+- **Meeting history**: Past meetings attended.
+- **Password change**: Change password form.
+- **Email change**: Change email form.
+- **Profile editing**: Editable name/email fields.
+- **Avatar / profile picture**: User photo upload.
+- **Unjoin button**: Leave a subscribed class.
+
 ## Running Tests
 
 ```bash
