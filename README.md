@@ -448,7 +448,7 @@ The student dashboard (`/dashboard`) now includes a "Próximas clases en vivo" s
 
 The following are out of scope for this slice and will be implemented in future changes:
 
-- **Recurring meetings**: RRULE-based recurrence ("every Monday 18:00").
+- **Recurring meetings**: RRULE-based recurrence ("every Monday 18:00"). Basic weekly/biweekly/monthly recurrence with eager materialization is now implemented — see [Recurring Meetings](#recurring-meetings) above. Full RRULE support remains deferred.
 - **iCal export**: `.ics` file download for calendar integration.
 - **Google/Outlook calendar integration**: `webcal://` subscription endpoints.
 - **Recording/replay**: Post-meeting video recordings.
@@ -499,6 +499,78 @@ The following are explicitly out of scope for this change and will be implemente
 - **Avatar / profile picture**: User photo upload.
 - **Unjoin button**: Leave a subscribed class.
 
+## Recurring Meetings
+
+Teachers can schedule recurring live meetings (weekly, biweekly, monthly) for their classes. The system eagerly materializes all child instances at creation time so the student dashboard and join flow work without changes.
+
+### Creating a Recurring Meeting (Teacher)
+
+1. Navigate to `/admin/meetings` and click **Create**.
+2. Fill in meeting details as usual (class, title, scheduled date/time, duration, meeting URL, agenda).
+3. Check the **"Is recurring?"** toggle to reveal the recurrence section:
+   - **Frequency**: `Weekly` (every 1 week), `Biweekly` (every 2 weeks), or `Monthly` (every 1 month).
+   - **Interval**: Multiplier on the frequency (1 = every, 2 = every other; default: 1).
+   - **Number of instances**: Total instances including the first one (default: 12, max: 52).
+4. Submit. The parent meeting is created with the recurrence rule, and N-1 child instances are materialized immediately. Each child shares the parent's class, title, duration, meeting URL, and agenda but has its own computed `scheduled_at` timestamp.
+
+### How It Works Under the Hood
+
+| Concept | Implementation |
+|---------|---------------|
+| **Parent meeting** | A `meetings` row with a non-null `recurrence_rule` JSON column |
+| **Child instance** | A `meetings` row with `parent_id` pointing to the parent and `recurrence_rule = NULL` |
+| **Create flow** | Virtual form fields (`is_recurring`, `frequency`, `interval`, `count`) → `mutateFormDataBeforeCreate` builds the `recurrence_rule` JSON → parent created → `afterCreate` calls `generateInstances(count)` |
+| **Edit-all flow** | Editing a parent automatically propagates `title`, `agenda`, `duration_minutes`, and `meeting_url` to all **future** children (`scheduled_at >= now()`). Past children are **never** modified. |
+| **Delete-all flow** | Deleting a parent cascades to all children via the `parent_id` foreign key (`onDelete('cascade')`). No application code required. |
+| **Student dashboard** | Children appear as ordinary rows — the existing `upcoming()` scope and `scheduled_at ASC` sort surface them without any query changes. |
+
+### `recurrence_rule` JSON Structure
+
+```json
+{
+  "frequency": "weekly",
+  "interval": 1,
+  "count": 12,
+  "until": null,
+  "days_of_week": null
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `frequency` | string | `"weekly"` | `weekly`, `biweekly`, or `monthly` |
+| `interval` | int | `1` | Multiplier (1 = every, 2 = every other) |
+| `count` | int | `12` | Total instances including parent (max 52) |
+| `until` | timestamp\|null | `null` | Optional end date (alternative to count) |
+| `days_of_week` | array\|null | `null` | Optional `[0..6]` array for multi-day weekly (Sunday..Saturday) |
+
+### Meeting Model Extensions
+
+| Method | Description |
+|--------|-------------|
+| `parent()` | `belongsTo(Meeting::class, 'parent_id')` — the parent of this child |
+| `children()` | `hasMany(Meeting::class, 'parent_id')` — child instances, ordered by `scheduled_at ASC` |
+| `isRecurring()` | Returns `true` when `recurrence_rule !== null` |
+| `recurrenceRule()` | Accessor that decodes the JSON column into an array |
+| `setRecurrenceRule(array)` | Mutator that encodes an array into the JSON column |
+| `generateInstances(int $count)` | Eagerly creates `$count - 1` children with computed `scheduled_at` timestamps |
+
+### Deferred Items
+
+The following are explicitly out of scope for this change and will be implemented in future changes:
+
+- **RRULE support**: RFC 5545 custom patterns (e.g., "Tue + Thu at 18:00", "third Friday of the month").
+- **"Edit this only" / "Delete this only"**: Per-instance exceptions — only "Edit all" and "Delete all" are supported.
+- **Recurring study materials**: Only meetings support recurrence; study materials remain one-off.
+- **iCal series export**: `.ics` file download for calendar integration.
+- **Email reminders**: No mailer is configured; the student dashboard "Live now!" indicator is the sole reminder surface.
+
+### Test Coverage
+
+| File | Count | Covers |
+|------|-------|--------|
+| `tests/Feature/RecurringMeetingTest.php` | 7 | Migration columns, model relations/methods, one-off vs recurring creation, `generateInstances`, edit-all propagation, delete-all cascade, JSON round-trip |
+
 ## Running Tests
 
 ```bash
@@ -524,6 +596,7 @@ Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memor
 | `tests/Feature/ClassReportServiceTest.php` | 13 | Stats arithmetic (avg, pass rate, median), 100%/0% pass, empty class, sort order |
 | `tests/Feature/ClassReportTest.php` | 14 | Access control (teacher/admin/student/guest), sync PDF/Excel, pass rate, download route auth + validation |
 | `tests/Feature/GenerateClassReportPdfJobTest.php` | 8 | Queue dispatch (Queue::fake), file storage, database notification, graceful handling of missing models |
+| `tests/Feature/RecurringMeetingTest.php` | 7 | Migration columns, model relations/methods, one-off vs recurring creation, generateInstances, edit-all propagation, delete-all cascade, JSON round-trip |
 | `tests/Feature/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 | `tests/Unit/ExampleTest.php` | 1 | Skeleton test (PHPUnit) |
 
