@@ -13,8 +13,11 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\RichEditor;
+use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\BadgeColumn;
@@ -76,6 +79,40 @@ class MeetingResource extends Resource
                     ->label('Agenda')
                     ->nullable()
                     ->columnSpanFull(),
+
+                Toggle::make('is_recurring')
+                    ->label('Is recurring?')
+                    ->live()
+                    ->default(false),
+
+                Section::make('Make this recurring')
+                    ->columns(3)
+                    ->visible(fn (Get $get): bool => (bool) $get('is_recurring'))
+                    ->schema([
+                        Select::make('frequency')
+                            ->options([
+                                'weekly'   => 'Weekly',
+                                'biweekly' => 'Biweekly',
+                                'monthly'  => 'Monthly',
+                            ])
+                            ->default('weekly')
+                            ->required(),
+
+                        TextInput::make('interval')
+                            ->numeric()
+                            ->default(1)
+                            ->minValue(1)
+                            ->required(),
+
+                        TextInput::make('count')
+                            ->label('Number of instances')
+                            ->numeric()
+                            ->default(12)
+                            ->minValue(1)
+                            ->maxValue(52)
+                            ->required()
+                            ->helperText('Total instances including the first one.'),
+                    ]),
             ]);
     }
 
