@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\IcalExportController;
 use App\Http\Controllers\JoinClassController;
 use App\Http\Controllers\ReportDownloadController;
 use App\Http\Controllers\Student\ExamController;
@@ -33,6 +34,9 @@ Route::middleware(['auth', 'role:STUDENT'])->group(function () {
     Route::post('/examenes/{attempt}/responder/{question}', [ExamController::class, 'answer'])->name('student.exam.answer')->middleware('checkTimer');
     Route::post('/examenes/{attempt}/finalizar', [ExamController::class, 'submit'])->name('student.exam.submit');
     Route::get('/examenes/{attempt}/resultado', ExamResult::class)->name('student.exam.result');
+
+    Route::get('/meetings/{meeting}/ics', [IcalExportController::class, 'export'])
+        ->name('meetings.ics');
 });
 
 // Student profile (read-only, replaces Breeze profile routes)
