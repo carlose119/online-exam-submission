@@ -226,6 +226,11 @@
                                 </a>
                             @endif
                         @endif
+                        <p class="meeting-meta" style="margin-top:0.5rem;">
+                            <a href="{{ route('meetings.ics', $meeting) }}" style="color:#2563eb;font-size:0.8125rem;text-decoration:none;">
+                                Download .ics
+                            </a>
+                        </p>
                     </div>
                 @endforeach
             </div>
