@@ -562,7 +562,6 @@ The following are explicitly out of scope for this change and will be implemente
 - **RRULE support**: RFC 5545 custom patterns (e.g., "Tue + Thu at 18:00", "third Friday of the month").
 - **"Edit this only" / "Delete this only"**: Per-instance exceptions — only "Edit all" and "Delete all" are supported.
 - **Recurring study materials**: Only meetings support recurrence; study materials remain one-off.
-- **iCal series export**: `.ics` file download for calendar integration.
 - **Email reminders**: No mailer is configured; the student dashboard "Live now!" indicator is the sole reminder surface.
 
 ### Test Coverage
@@ -570,6 +569,62 @@ The following are explicitly out of scope for this change and will be implemente
 | File | Count | Covers |
 |------|-------|--------|
 | `tests/Feature/RecurringMeetingTest.php` | 7 | Migration columns, model relations/methods, one-off vs recurring creation, `generateInstances`, edit-all propagation, delete-all cascade, JSON round-trip |
+
+## iCalendar Export
+
+Students can download a single meeting as an RFC 5545 `.ics` file to add it to their personal calendar (Google Calendar, Apple Calendar, Outlook).
+
+### How to Download
+
+1. Log in as a student and navigate to `/dashboard`.
+2. In the "Próximas clases en vivo" section, find the meeting card.
+3. Click the **"Download .ics"** link — your browser downloads a `.ics` file named `meeting-{id}.ics`.
+4. Open the file in your calendar client to import the event.
+
+### .ics Content
+
+| Field | Source |
+|-------|--------|
+| `UID` | `meeting-{id}@online-exam-submission.test` |
+| `DTSTART` | Meeting's `scheduled_at` in UTC (`YYYYMMDDTHHMMSSZ`) |
+| `DTEND` | `scheduled_at + duration_minutes` in UTC (default 60 if not set) |
+| `SUMMARY` | Meeting title |
+| `DESCRIPTION` | Meeting agenda (plain text) |
+| `LOCATION` | Meeting URL (Google Meet / Zoom link) |
+| `ORGANIZER` | Teacher name and email (`CN={name}:mailto:{email}`) |
+
+### Access Control
+
+| Role | Access |
+|------|--------|
+| **STUDENT** (subscribed to the meeting's class) | Full access — `.ics` download |
+| **STUDENT** (not subscribed to the meeting's class) | Forbidden (403) |
+| **TEACHER / ADMIN** | Forbidden (403) by `role:student` middleware |
+| **Guest** | Redirected to `/login` |
+
+### Technical Details
+
+- **Route**: `GET /meetings/{meeting}/ics` (named `meetings.ics`)
+- **Middleware**: `auth` + `role:STUDENT`
+- **Subscription check**: Controller verifies the user is in `class_user` for the meeting's class
+- **Builder**: `app/Services/IcalBuilder.php` — `build(Meeting): string` returns a complete `VCALENDAR`/`VEVENT` string
+- **Controller**: `app/Http/Controllers/IcalExportController.php` — returns `text/calendar; charset=utf-8` with `Content-Disposition: attachment`
+
+### Deferred Items
+
+The following are explicitly out of scope for this change and will be implemented in future changes:
+
+- **Subscription URL** (`webcal://`): Auto-updating calendar subscription endpoint.
+- **Per-class .ics feed**: Aggregate `.ics` with all meetings of a class in one file.
+- **RRULE support**: Recurring meeting series as a single `.ics` with `RRULE` (currently each instance is a separate download).
+- **VALARM reminders**: Calendar alarm reminders in the `.ics` file.
+- **Email reminders**: No mailer is configured.
+
+### Test Coverage
+
+| File | Count | Covers |
+|------|-------|--------|
+| `tests/Feature/IcalExportTest.php` | 8 | Guest redirect, non-student 403, unsubscribed 403, valid .ics content (all 7 fields + headers), null-duration default (60 min), null agenda/meeting_url handling, no RRULE, dashboard "Download .ics" link |
 
 ## Running Tests
 
