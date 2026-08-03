@@ -37,9 +37,11 @@ class IcalBuilder
             "SUMMARY:{$summary}",
         ];
 
-        if ($meeting->agenda !== null) {
-            $lines[] = 'DESCRIPTION:' . $this->escapeIcalText($meeting->agenda);
-        }
+        $description = $meeting->agenda !== null
+            ? $this->escapeIcalText($meeting->agenda)
+            : '';
+
+        $lines[] = "DESCRIPTION:{$description}";
 
         $location = $meeting->meeting_url !== null
             ? $this->escapeIcalText($meeting->meeting_url)
