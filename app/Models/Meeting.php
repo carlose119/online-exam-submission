@@ -154,7 +154,7 @@ class Meeting extends Model
                 'class_id'         => $this->class_id,
                 'title'            => $this->title,
                 'scheduled_at'     => $childScheduledAt,
-                'duration_minutes' => $this->duration_minutes,
+                'duration_minutes' => $this->duration_minutes ?? 60,
                 'meeting_url'      => $this->meeting_url,
                 'agenda'           => $this->agenda,
                 'recurrence_rule'  => null,
