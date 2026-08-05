@@ -5,6 +5,7 @@ namespace App\Livewire\Student;
 use App\Models\Exam;
 use App\Models\StudentAttempt;
 use App\Services\ExamAccessGuard;
+use App\Services\ExamAttemptCreator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -34,11 +35,7 @@ class ExamStart extends Component
     {
         app(ExamAccessGuard::class)->ensureSubscribed($this->exam, Auth::id());
 
-        $attempt = StudentAttempt::create([
-            'student_id' => Auth::id(),
-            'exam_id' => $this->exam->id,
-            'started_at' => now(),
-        ]);
+        $attempt = app(ExamAttemptCreator::class)->create($this->exam, Auth::id());
 
         return redirect()->route('student.exam.take', $attempt);
     }

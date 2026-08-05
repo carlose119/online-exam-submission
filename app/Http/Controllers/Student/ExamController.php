@@ -8,6 +8,7 @@ use App\Models\Question;
 use App\Models\StudentAttempt;
 use App\Services\AnswerSelectionWriter;
 use App\Services\ExamAccessGuard;
+use App\Services\ExamAttemptCreator;
 use App\Services\ExamGradingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,10 @@ use Illuminate\Support\Facades\Auth;
 
 class ExamController extends Controller
 {
-    public function __construct(private readonly ExamAccessGuard $accessGuard) {}
+    public function __construct(
+        private readonly ExamAccessGuard $accessGuard,
+        private readonly ExamAttemptCreator $attemptCreator,
+    ) {}
 
     /**
      * Start a new exam attempt.
@@ -30,16 +34,7 @@ class ExamController extends Controller
 
         $this->accessGuard->ensureSubscribed($exam, $student->id);
 
-        // Enforce 1-attempt constraint.
-        if (StudentAttempt::where('student_id', $student->id)->where('exam_id', $exam->id)->exists()) {
-            abort(403, 'You have already taken this exam.');
-        }
-
-        $attempt = StudentAttempt::create([
-            'student_id' => $student->id,
-            'exam_id' => $exam->id,
-            'started_at' => now(),
-        ]);
+        $attempt = $this->attemptCreator->create($exam, $student->id);
 
         return redirect()->route('student.exam.take', $attempt);
     }

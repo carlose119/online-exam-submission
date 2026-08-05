@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Student\ExamController;
 use App\Livewire\Student\ExamStart;
 use App\Livewire\Student\ExamTake;
 use App\Models\AnswerOption;
@@ -13,6 +14,7 @@ use App\Services\AnswerSelectionWriter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -567,7 +569,63 @@ it('ExamStart start action redirects without TypeError', function () {
 
     expect(StudentAttempt::where('student_id', $data['student']->id)
         ->where('exam_id', $data['exam']->id)
-        ->exists())->toBeTrue();
+        ->first()->started_at)->not->toBeNull()
+        ->and(StudentAttempt::count())->toBe(1);
+});
+
+it('rejects a stale ExamStart action after another request creates the attempt', function () {
+    $data = seedExamTaking();
+    $component = Livewire::actingAs($data['student'])->test(ExamStart::class, ['exam' => $data['exam']]);
+    $startedAt = now()->subMinute()->startOfSecond();
+    $original = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => $startedAt,
+    ]);
+
+    $component->call('start')->assertForbidden();
+
+    expect(StudentAttempt::count())->toBe(1)
+        ->and($original->fresh()->started_at->equalTo($startedAt))->toBeTrue();
+});
+
+it('creates one attempt through the HTTP controller with a server start time', function () {
+    $data = seedExamTaking();
+    $startedAt = now()->startOfSecond();
+    $this->travelTo($startedAt);
+    $this->actingAs($data['student']);
+
+    $response = app(ExamController::class)->start(request(), $data['exam']);
+
+    $attempt = StudentAttempt::sole();
+    expect($attempt->started_at->equalTo($startedAt))->toBeTrue();
+    expect($response->getTargetUrl())->toBe(route('student.exam.take', $attempt));
+});
+
+it('rejects an existing attempt through the HTTP controller without changing it', function () {
+    $data = seedExamTaking();
+    $startedAt = now()->subMinute()->startOfSecond();
+    $original = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => $startedAt,
+    ]);
+    $this->actingAs($data['student']);
+
+    expect(fn () => app(ExamController::class)->start(request(), $data['exam']))
+        ->toThrow(HttpException::class, 'You have already taken this exam.');
+    expect(StudentAttempt::count())->toBe(1)
+        ->and($original->fresh()->started_at->equalTo($startedAt))->toBeTrue();
+});
+
+it('checks HTTP start subscription before attempt creation', function () {
+    $data = seedExamTaking();
+    $data['student']->subscribedClasses()->detach($data['class']->id);
+    $this->actingAs($data['student']);
+
+    expect(fn () => app(ExamController::class)->start(request(), $data['exam']))
+        ->toThrow(HttpException::class, 'You are not subscribed to this class.');
+    expect(StudentAttempt::count())->toBe(0);
 });
 
 it('denies start when subscription is revoked after the component mounts', function () {
