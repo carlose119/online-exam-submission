@@ -7,6 +7,7 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
@@ -271,6 +272,49 @@ it('re-answering a question replaces the previous selection', function () {
         ->count())->toBe(1);
 });
 
+it('rejects a foreign option for SINGLE without replacing the previous answer', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $previous = $single->options()->where('is_correct', false)->first();
+    $foreign = $multiple->options()->where('is_correct', true)->first();
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $single->id, 'answer_option_id' => $previous->id]);
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => [$foreign->id]])
+        ->assertSessionHasErrors('options.0');
+
+    expect($attempt->answers()->where('question_id', $single->id)->pluck('answer_option_id')->all())->toBe([$previous->id]);
+});
+
+it('rejects a mixed foreign MULTIPLE selection atomically', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $previous = $multiple->options()->where('is_correct', false)->first();
+    $valid = $multiple->options()->where('is_correct', true)->first();
+    $foreign = $single->options()->where('is_correct', true)->first();
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $multiple->id, 'answer_option_id' => $previous->id]);
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => [$valid->id, $foreign->id]])
+        ->assertSessionHasErrors('options.1');
+
+    expect($attempt->answers()->where('question_id', $multiple->id)->pluck('answer_option_id')->all())->toBe([$previous->id]);
+});
+
+it('rejects multiple distinct options for SINGLE', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => $single->options()->pluck('id')->all()])
+        ->assertSessionHasErrors('options');
+
+    expect($attempt->answers()->count())->toBe(0);
+});
+
 // ---------------------------------------------------------------------------
 // Answer: denies for question not in exam
 // ---------------------------------------------------------------------------
@@ -506,6 +550,20 @@ it('ExamTake saveAndNext action redirects without TypeError', function () {
     $component->assertRedirect();
 });
 
+it('ExamTake saveAndNext rejects a foreign option without persistence', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $foreign = $multiple->options()->where('is_correct', true)->first();
+
+    Livewire::actingAs($data['student'])->test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt])
+        ->set("selectedOptions.{$single->id}", [$foreign->id])
+        ->call('saveAndNext')
+        ->assertHasErrors('options.0');
+
+    expect($attempt->answers()->count())->toBe(0);
+});
+
 // ---------------------------------------------------------------------------
 // Livewire: ExamTake::finalize does not throw TypeError (fix verification)
 // ---------------------------------------------------------------------------
@@ -540,4 +598,20 @@ it('ExamTake finalize action redirects without TypeError', function () {
     $attempt->refresh();
     expect($attempt->finished_at)->not->toBeNull();
     expect((float) $attempt->score_obtained)->toBeGreaterThan(0);
+});
+
+it('ExamTake finalize rejects a foreign option without persistence or grading', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $foreign = $multiple->options()->where('is_correct', true)->first();
+
+    Livewire::actingAs($data['student'])->test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt])
+        ->set("selectedOptions.{$single->id}", [$foreign->id])
+        ->call('finalize')
+        ->assertHasErrors('options.0');
+
+    $attempt->refresh();
+    expect($attempt->answers()->count())->toBe(0)
+        ->and($attempt->finished_at)->toBeNull();
 });

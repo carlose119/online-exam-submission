@@ -68,6 +68,10 @@
                     </label>
                 @endforeach
 
+                @error('options')
+                    <p style="color:#991b1b;font-size:0.875rem;">{{ $message }}</p>
+                @enderror
+
                 <div class="nav">
                     @if ($currentIndex > 0)
                         <button type="button" class="btn-prev" wire:click="previousQuestion">Anterior</button>

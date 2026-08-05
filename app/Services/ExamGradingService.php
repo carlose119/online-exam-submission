@@ -69,7 +69,7 @@ class ExamGradingService
         $option = $answer->option;
 
         // The selected option must be the correct one
-        if ($option && $option->is_correct === true) {
+        if ($option && $option->question_id === $question->id && $option->is_correct === true) {
             return (float) ($question->points ?? 0);
         }
 

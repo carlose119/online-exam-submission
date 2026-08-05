@@ -5,6 +5,7 @@ namespace App\Livewire\Student;
 use App\Models\Question;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
+use App\Services\AnswerSelectionWriter;
 use App\Services\ExamGradingService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -144,17 +145,7 @@ class ExamTake extends Component
     {
         $selected = $this->selectedOptions[$question->id] ?? [];
 
-        StudentAnswer::where('student_attempt_id', $this->attempt->id)
-            ->where('question_id', $question->id)
-            ->delete();
-
-        foreach ($selected as $optionId) {
-            StudentAnswer::create([
-                'student_attempt_id' => $this->attempt->id,
-                'question_id' => $question->id,
-                'answer_option_id' => (int) $optionId,
-            ]);
-        }
+        app(AnswerSelectionWriter::class)->replace($this->attempt, $question, $selected);
     }
 
     /**

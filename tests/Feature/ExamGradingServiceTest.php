@@ -163,6 +163,22 @@ it('SINGLE question with incorrect answer awards 0 points', function () {
     expect($score)->toBe(0.0);
 });
 
+it('SINGLE question with a foreign correct option awards 0 points', function () {
+    $data = seedGradingTest([
+        ['text' => 'Target', 'type' => 'SINGLE', 'points' => 5, 'options' => [['text' => 'Wrong', 'is_correct' => false]]],
+        ['text' => 'Other', 'type' => 'SINGLE', 'points' => 0, 'options' => [['text' => 'Foreign correct', 'is_correct' => true]]],
+    ]);
+    [$target, $other] = $data['exam']->questions()->orderBy('order')->get();
+    $attempt = createAttempt($data['student'], $data['exam']);
+    StudentAnswer::create([
+        'student_attempt_id' => $attempt->id,
+        'question_id' => $target->id,
+        'answer_option_id' => $other->options()->first()->id,
+    ]);
+
+    expect((new ExamGradingService())->gradeAttempt($attempt))->toBe(0.0);
+});
+
 // ---------------------------------------------------------------------------
 // SINGLE: No answer (blank) → 0 points
 // ---------------------------------------------------------------------------

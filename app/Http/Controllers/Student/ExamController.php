@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\Question;
-use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
+use App\Services\AnswerSelectionWriter;
 use App\Services\ExamGradingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,8 +73,12 @@ class ExamController extends Controller
      * pair, then inserts the new selection. Automatically advances to
      * the next question.
      */
-    public function answer(Request $request, StudentAttempt $attempt, Question $question): RedirectResponse
-    {
+    public function answer(
+        Request $request,
+        StudentAttempt $attempt,
+        Question $question,
+        AnswerSelectionWriter $answerWriter,
+    ): RedirectResponse {
         if ($attempt->student_id !== Auth::id()) {
             abort(403);
         }
@@ -90,22 +94,7 @@ class ExamController extends Controller
             $selectedOptions = $selectedOptions !== null ? [$selectedOptions] : [];
         }
 
-        // Convert option IDs to integers.
-        $selectedOptions = array_map('intval', $selectedOptions);
-
-        // Delete previous answers for this question (safe re-answer).
-        StudentAnswer::where('student_attempt_id', $attempt->id)
-            ->where('question_id', $question->id)
-            ->delete();
-
-        // Insert the new selection.
-        foreach ($selectedOptions as $optionId) {
-            StudentAnswer::create([
-                'student_attempt_id' => $attempt->id,
-                'question_id' => $question->id,
-                'answer_option_id' => $optionId,
-            ]);
-        }
+        $answerWriter->replace($attempt, $question, $selectedOptions);
 
         // Compute the next question index.
         $questions = $attempt->exam->questions()->orderBy('order')->get();
