@@ -31,9 +31,9 @@ Apply only the next autonomous slice; do not implement all three PRs in one appl
 
 ## Phase 1: Foundation and Token Lifecycle
 
-- [ ] 1.1 Create `database/migrations/{ts}_add_feed_token_to_users_table.php`; add nullable indexed unique `VARCHAR(64)` and reversible `down()`; evidence: schema test confirms type, nullable, unique/indexed.
-- [ ] 1.2 Modify `app/Models/User.php`; add non-fillable `generateFeedToken()`/`regenerateFeedToken()` using collision-safe `Str::random(64)` issuance; evidence: persistence, length, overwrite, and old-token invalidation assertions.
-- [ ] 1.3 Create the first case in `tests/Feature/CalendarFeedTest.php` for migration/token persistence; tests follow implementation (strict TDD is disabled).
+- [x] 1.1 Create `database/migrations/{ts}_add_feed_token_to_users_table.php`; add nullable indexed unique `VARCHAR(64)` and reversible `down()`; evidence: schema test confirms type, nullable, unique/indexed.
+- [x] 1.2 Modify `app/Models/User.php`; add non-fillable `generateFeedToken()`/`regenerateFeedToken()` using collision-safe `Str::random(64)` issuance; evidence: persistence, length, overwrite, and old-token invalidation assertions.
+- [x] 1.3 Create the first case in `tests/Feature/CalendarFeedTest.php` for migration/token persistence; tests follow implementation (strict TDD is disabled).
 
 ## Phase 2: Feed and Serialization
 
