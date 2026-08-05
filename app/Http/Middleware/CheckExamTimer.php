@@ -3,13 +3,15 @@
 namespace App\Http\Middleware;
 
 use App\Models\StudentAttempt;
+use App\Services\ExamAccessGuard;
 use App\Services\ExamGradingService;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 
 class CheckExamTimer
 {
+    public function __construct(private readonly ExamAccessGuard $accessGuard) {}
+
     /**
      * Enforce the strict exam timer.
      *
@@ -29,6 +31,7 @@ class CheckExamTimer
             return $next($request);
         }
 
+        $this->accessGuard->ensureCanTake($attempt, $request->user()->id);
         $attempt->load('exam');
 
         $deadline = $attempt->started_at->addMinutes($attempt->exam->duration_minutes);
@@ -36,7 +39,7 @@ class CheckExamTimer
         if (now()->greaterThan($deadline)) {
             // Timer expired — auto-submit.
             if ($attempt->finished_at === null) {
-                $service = new ExamGradingService();
+                $service = new ExamGradingService;
                 $service->gradeAttempt($attempt);
             }
 

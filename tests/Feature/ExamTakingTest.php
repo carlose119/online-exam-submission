@@ -570,6 +570,27 @@ it('ExamStart start action redirects without TypeError', function () {
         ->exists())->toBeTrue();
 });
 
+it('denies start when subscription is revoked after the component mounts', function () {
+    $data = seedExamTaking();
+    $component = Livewire::actingAs($data['student'])->test(ExamStart::class, ['exam' => $data['exam']]);
+
+    $data['student']->subscribedClasses()->detach($data['class']->id);
+
+    $component->call('start')->assertForbidden();
+    expect(StudentAttempt::count())->toBe(0);
+});
+
+it('denies taking an unfinished attempt after subscription is revoked', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $data['student']->subscribedClasses()->detach($data['class']->id);
+
+    $this->actingAs($data['student'])->get(route('student.exam.take', $attempt))->assertForbidden();
+
+    expect($attempt->fresh()->finished_at)->toBeNull()
+        ->and($attempt->answers()->count())->toBe(0);
+});
+
 // ---------------------------------------------------------------------------
 // Livewire: ExamTake::saveAndNext does not throw TypeError (fix verification)
 // ---------------------------------------------------------------------------
@@ -657,4 +678,60 @@ it('ExamTake finalize rejects a foreign option without persistence or grading', 
     $attempt->refresh();
     expect($attempt->answers()->count())->toBe(0)
         ->and($attempt->finished_at)->toBeNull();
+});
+
+it('denies Livewire answer and finalize mutations after subscription is revoked', function () {
+    $data = seedExamTaking();
+    $question = $data['questions'][0];
+    $correct = $question->options()->where('is_correct', true)->first();
+
+    foreach (['saveAndNext', 'finalize'] as $action) {
+        $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+        $component = Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+            ->set("selectedOptions.{$question->id}", [$correct->id]);
+        $data['student']->subscribedClasses()->detach($data['class']->id);
+
+        $component->call($action)->assertForbidden();
+        expect($attempt->answers()->count())->toBe(0)
+            ->and($attempt->fresh()->finished_at)->toBeNull();
+
+        $attempt->delete();
+        $data['student']->subscribedClasses()->attach($data['class']->id);
+    }
+});
+
+it('denies HTTP answer and submit mutations after subscription is revoked', function () {
+    $data = seedExamTaking();
+    $question = $data['questions'][0];
+    $wrong = $question->options()->where('is_correct', false)->first();
+    $correct = $question->options()->where('is_correct', true)->first();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $question->id, 'answer_option_id' => $wrong->id]);
+    $data['student']->subscribedClasses()->detach($data['class']->id);
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', compact('attempt', 'question')), ['options' => [$correct->id]])
+        ->assertForbidden();
+    $this->post(route('student.exam.submit', $attempt))->assertForbidden();
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$wrong->id])
+        ->and($attempt->fresh()->finished_at)->toBeNull()
+        ->and($attempt->score_obtained)->toBeNull();
+});
+
+it('allows an owner to view a completed result after subscription is revoked', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now()->subMinute(),
+        'finished_at' => now(),
+        'score_obtained' => 10,
+    ]);
+    $data['student']->subscribedClasses()->detach($data['class']->id);
+
+    $this->actingAs($data['student'])
+        ->get(route('student.exam.result', $attempt))
+        ->assertOk()
+        ->assertSee('ET Exam');
 });

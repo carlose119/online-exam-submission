@@ -6,6 +6,7 @@ use App\Models\Question;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Services\AnswerSelectionWriter;
+use App\Services\ExamAccessGuard;
 use App\Services\ExamGradingService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -28,9 +29,7 @@ class ExamTake extends Component
 
     public function mount(StudentAttempt $attempt): void
     {
-        if ($attempt->student_id !== Auth::id()) {
-            abort(403);
-        }
+        app(ExamAccessGuard::class)->ensureCanTake($attempt, Auth::id());
 
         $this->attempt = $attempt->load('exam.questions.options');
 
@@ -171,6 +170,8 @@ class ExamTake extends Component
 
     private function finalizeIfExpired(): bool
     {
+        app(ExamAccessGuard::class)->ensureCanTake($this->attempt->fresh(), Auth::id());
+
         $deadline = $this->attempt->started_at->addMinutes($this->attempt->exam->duration_minutes);
 
         if (! now()->greaterThan($deadline)) {

@@ -7,6 +7,7 @@ use App\Models\Exam;
 use App\Models\Question;
 use App\Models\StudentAttempt;
 use App\Services\AnswerSelectionWriter;
+use App\Services\ExamAccessGuard;
 use App\Services\ExamGradingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Auth;
 
 class ExamController extends Controller
 {
+    public function __construct(private readonly ExamAccessGuard $accessGuard) {}
+
     /**
      * Start a new exam attempt.
      *
@@ -25,10 +28,7 @@ class ExamController extends Controller
     {
         $student = Auth::user();
 
-        // Verify the student is subscribed to the exam's class.
-        if (! $exam->classroom->students()->where('users.id', $student->id)->exists()) {
-            abort(403, 'You are not subscribed to this class.');
-        }
+        $this->accessGuard->ensureSubscribed($exam, $student->id);
 
         // Enforce 1-attempt constraint.
         if (StudentAttempt::where('student_id', $student->id)->where('exam_id', $exam->id)->exists()) {
@@ -52,9 +52,7 @@ class ExamController extends Controller
      */
     public function show(StudentAttempt $attempt): array
     {
-        if ($attempt->student_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->accessGuard->ensureCanTake($attempt, Auth::id());
 
         $attempt->load('exam.questions.options');
 
@@ -79,9 +77,7 @@ class ExamController extends Controller
         Question $question,
         AnswerSelectionWriter $answerWriter,
     ): RedirectResponse {
-        if ($attempt->student_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->accessGuard->ensureCanTake($attempt, Auth::id());
 
         // Guard: question must belong to the attempt's exam.
         if ($question->exam_id !== $attempt->exam_id) {
@@ -115,11 +111,9 @@ class ExamController extends Controller
      */
     public function submit(Request $request, StudentAttempt $attempt): RedirectResponse
     {
-        if ($attempt->student_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->accessGuard->ensureCanTake($attempt, Auth::id());
 
-        $service = new ExamGradingService();
+        $service = new ExamGradingService;
         $service->gradeAttempt($attempt);
 
         return redirect()->route('student.exam.result', $attempt);

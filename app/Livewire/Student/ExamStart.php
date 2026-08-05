@@ -4,6 +4,7 @@ namespace App\Livewire\Student;
 
 use App\Models\Exam;
 use App\Models\StudentAttempt;
+use App\Services\ExamAccessGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -18,10 +19,7 @@ class ExamStart extends Component
     {
         $this->exam = $exam->load('classroom');
 
-        // Guard: student must be subscribed to the class.
-        if (! $this->exam->classroom->students()->where('users.id', Auth::id())->exists()) {
-            abort(403, 'You are not subscribed to this class.');
-        }
+        app(ExamAccessGuard::class)->ensureSubscribed($this->exam, Auth::id());
 
         // Guard: student must not have an existing attempt.
         if (StudentAttempt::where('student_id', Auth::id())->where('exam_id', $this->exam->id)->exists()) {
@@ -34,6 +32,8 @@ class ExamStart extends Component
      */
     public function start()
     {
+        app(ExamAccessGuard::class)->ensureSubscribed($this->exam, Auth::id());
+
         $attempt = StudentAttempt::create([
             'student_id' => Auth::id(),
             'exam_id' => $this->exam->id,
