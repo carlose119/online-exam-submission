@@ -37,9 +37,9 @@ Apply only the next autonomous slice; do not implement all three PRs in one appl
 
 ## Phase 2: Feed and Serialization
 
-- [ ] 2.1 Modify `app/Services/IcalBuilder.php`; extract shared VEVENT/envelope helpers and add `buildMany(iterable $meetings)` with CRLF and no duplicated serialization.
-- [ ] 2.2 Create `app/Http/Controllers/CalendarFeedController.php` and modify `routes/web.php`; add unauthenticated `calendar.feed`, token 404, subscribed-class eager loading with teacher, all past/future rows, and `Content-Type`, inline `Content-Disposition`, `Cache-Control: no-store, max-age=0`, and `Pragma: no-cache`.
-- [ ] 2.3 Add exactly five Pest cases across `tests/Feature/CalendarFeedTest.php` (cases 2–4 here): unknown-token 404; unauthenticated valid multi-event feed with exact headers and past/future events; subscribed-only filtering plus parent/three-child materialized recurrence, four VEVENTs, no RRULE, and shared `build()` content.
+- [x] 2.1 Modify `app/Services/IcalBuilder.php`; extract shared VEVENT/envelope helpers and add `buildMany(iterable $meetings)` with CRLF and no duplicated serialization.
+- [x] 2.2 Create `app/Http/Controllers/CalendarFeedController.php` and modify `routes/web.php`; add unauthenticated `calendar.feed`, token 404, subscribed-class eager loading with teacher, all past/future rows, and `Content-Type`, inline `Content-Disposition`, `Cache-Control: no-store, max-age=0`, and `Pragma: no-cache`.
+- [x] 2.3 Add exactly five Pest cases across `tests/Feature/CalendarFeedTest.php` (cases 2–4 here): unknown-token 404; unauthenticated valid multi-event feed with exact headers and past/future events; subscribed-only filtering plus parent/three-child materialized recurrence, four VEVENTs, no RRULE, and shared `build()` content.
 
 ## Phase 3: Dashboard, Documentation, and Regression
 

@@ -1,19 +1,22 @@
 <?php
 
+use App\Http\Controllers\CalendarFeedController;
 use App\Http\Controllers\IcalExportController;
 use App\Http\Controllers\JoinClassController;
 use App\Http\Controllers\ReportDownloadController;
 use App\Http\Controllers\Student\ExamController;
 use App\Livewire\Dashboard;
-use App\Livewire\StudentProfile;
 use App\Livewire\Student\ExamResult;
 use App\Livewire\Student\ExamStart;
 use App\Livewire\Student\ExamTake;
+use App\Livewire\StudentProfile;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/calendar/{token}.ics', [CalendarFeedController::class, 'feed'])->name('calendar.feed');
 
 // Breeze auth routes (login, register, forgot/reset password, etc.)
 require __DIR__.'/auth.php';

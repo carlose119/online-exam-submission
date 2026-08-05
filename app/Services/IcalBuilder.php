@@ -14,6 +14,44 @@ class IcalBuilder
      */
     public function build(Meeting $meeting): string
     {
+        return $this->buildCalendar([$meeting]);
+    }
+
+    /**
+     * Build an RFC 5545 VCALENDAR string for multiple meetings.
+     *
+     * @param  iterable<Meeting>  $meetings
+     */
+    public function buildMany(iterable $meetings): string
+    {
+        return $this->buildCalendar($meetings);
+    }
+
+    /**
+     * @param  iterable<Meeting>  $meetings
+     */
+    private function buildCalendar(iterable $meetings): string
+    {
+        $lines = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//online-exam-submission//ical-export//EN',
+        ];
+
+        foreach ($meetings as $meeting) {
+            array_push($lines, ...$this->eventLines($meeting));
+        }
+
+        $lines[] = 'END:VCALENDAR';
+
+        return implode("\r\n", $lines);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function eventLines(Meeting $meeting): array
+    {
         $uid = "meeting-{$meeting->id}@online-exam-submission.test";
 
         $dtStart = $meeting->scheduled_at->copy()->utc()->format('Ymd\THis\Z');
@@ -24,12 +62,9 @@ class IcalBuilder
         $summary = $this->escapeIcalText($meeting->title);
 
         $teacher = $meeting->classroom->teacher;
-        $organizer = 'ORGANIZER;CN=' . $teacher->name . ':mailto:' . $teacher->email;
+        $organizer = 'ORGANIZER;CN='.$teacher->name.':mailto:'.$teacher->email;
 
         $lines = [
-            'BEGIN:VCALENDAR',
-            'VERSION:2.0',
-            'PRODID:-//online-exam-submission//ical-export//EN',
             'BEGIN:VEVENT',
             "UID:{$uid}",
             "DTSTART:{$dtStart}",
@@ -50,9 +85,8 @@ class IcalBuilder
         $lines[] = "LOCATION:{$location}";
         $lines[] = $organizer;
         $lines[] = 'END:VEVENT';
-        $lines[] = 'END:VCALENDAR';
 
-        return implode("\r\n", $lines);
+        return $lines;
     }
 
     /**
