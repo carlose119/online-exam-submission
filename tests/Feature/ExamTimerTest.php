@@ -1,11 +1,14 @@
 <?php
 
+use App\Livewire\Student\ExamTake;
 use App\Models\AnswerOption;
 use App\Models\Exam;
 use App\Models\Question;
 use App\Models\SchoolClass;
+use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -170,6 +173,84 @@ it('allows answer when timer has not expired', function () {
 
     $attempt->refresh();
     expect($attempt->finished_at)->toBeNull();
+});
+
+it('rejects a late Livewire save and next answer before persisting it', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+    $correctOption = $data['question']->options()->where('is_correct', true)->first();
+
+    $component = Livewire::actingAs($data['student'])
+        ->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id]);
+
+    $this->travel(31)->minutes();
+
+    $component
+        ->call('saveAndNext')
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    $attempt->refresh();
+    expect(StudentAnswer::where('student_attempt_id', $attempt->id)->count())->toBe(0)
+        ->and($attempt->finished_at)->not->toBeNull()
+        ->and((float) $attempt->score_obtained)->toBe(0.0);
+});
+
+it('rejects a late Livewire finalize answer before grading it', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+    $wrongOption = $data['question']->options()->where('is_correct', false)->first();
+    $correctOption = $data['question']->options()->where('is_correct', true)->first();
+    StudentAnswer::create([
+        'student_attempt_id' => $attempt->id,
+        'question_id' => $data['question']->id,
+        'answer_option_id' => $wrongOption->id,
+    ]);
+
+    $component = Livewire::actingAs($data['student'])
+        ->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id]);
+
+    $this->travel(31)->minutes();
+
+    $component
+        ->call('finalize')
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    $attempt->refresh();
+    expect(StudentAnswer::where('student_attempt_id', $attempt->id)->count())->toBe(1)
+        ->and(StudentAnswer::where('student_attempt_id', $attempt->id)->value('answer_option_id'))->toBe($wrongOption->id)
+        ->and($attempt->finished_at)->not->toBeNull()
+        ->and((float) $attempt->score_obtained)->toBe(0.0);
+});
+
+it('persists an unexpired Livewire save and next answer normally', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+    $correctOption = $data['question']->options()->where('is_correct', true)->first();
+
+    Livewire::actingAs($data['student'])
+        ->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id])
+        ->call('saveAndNext')
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+
+    $attempt->refresh();
+    expect(StudentAnswer::where('student_attempt_id', $attempt->id)->count())->toBe(1)
+        ->and(StudentAnswer::where('student_attempt_id', $attempt->id)->value('answer_option_id'))->toBe($correctOption->id)
+        ->and($attempt->finished_at)->toBeNull();
 });
 
 // ---------------------------------------------------------------------------

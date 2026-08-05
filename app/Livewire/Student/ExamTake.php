@@ -6,6 +6,7 @@ use App\Models\Question;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Services\ExamGradingService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -18,7 +19,7 @@ class ExamTake extends Component
 
     public int $currentIndex = 0;
 
-    /** @var \Illuminate\Database\Eloquent\Collection */
+    /** @var Collection */
     public $questions;
 
     /** @var array<int, array<int>> */
@@ -110,6 +111,10 @@ class ExamTake extends Component
      */
     public function saveAndNext()
     {
+        if ($this->finalizeIfExpired()) {
+            return redirect()->route('student.exam.result', $this->attempt);
+        }
+
         $question = $this->questions[$this->currentIndex] ?? null;
         if (! $question) {
             return redirect()->route('student.exam.take', $this->attempt);
@@ -157,16 +162,37 @@ class ExamTake extends Component
      */
     public function finalize()
     {
+        if ($this->finalizeIfExpired()) {
+            return redirect()->route('student.exam.result', $this->attempt);
+        }
+
         // Persist any unsaved answer for the current question first.
         $currentQuestion = $this->questions[$this->currentIndex] ?? null;
         if ($currentQuestion) {
             $this->persistAnswer($currentQuestion);
         }
 
-        $service = new ExamGradingService();
+        $service = new ExamGradingService;
         $service->gradeAttempt($this->attempt->fresh());
 
         return redirect()->route('student.exam.result', $this->attempt);
+    }
+
+    private function finalizeIfExpired(): bool
+    {
+        $deadline = $this->attempt->started_at->addMinutes($this->attempt->exam->duration_minutes);
+
+        if (! now()->greaterThan($deadline)) {
+            return false;
+        }
+
+        if ($this->attempt->finished_at === null) {
+            $service = new ExamGradingService;
+            $service->gradeAttempt($this->attempt->fresh());
+            $this->attempt->refresh();
+        }
+
+        return true;
     }
 
     /**
@@ -182,10 +208,7 @@ class ExamTake extends Component
     public function render(): View
     {
         // Re-check timer on every render.
-        $deadline = $this->attempt->started_at->addMinutes($this->attempt->exam->duration_minutes);
-        if (now()->greaterThan($deadline) && $this->attempt->finished_at === null) {
-            $service = new ExamGradingService();
-            $service->gradeAttempt($this->attempt->fresh());
+        if ($this->attempt->finished_at === null && $this->finalizeIfExpired()) {
             $this->redirect(route('student.exam.result', $this->attempt), navigate: false);
 
             return view('livewire.student.exam.take');
