@@ -1,5 +1,7 @@
 <?php
 
+use App\Livewire\Student\ExamStart;
+use App\Livewire\Student\ExamTake;
 use App\Models\AnswerOption;
 use App\Models\Exam;
 use App\Models\Question;
@@ -7,7 +9,9 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use App\Services\AnswerSelectionWriter;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
@@ -272,6 +276,45 @@ it('re-answering a question replaces the previous selection', function () {
         ->count())->toBe(1);
 });
 
+it('rejects direct answer replacement after finalization without changing attempt state', function () {
+    $data = seedExamTaking();
+    $finishedAt = now()->subMinute()->startOfSecond();
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now()->subMinutes(10),
+        'finished_at' => $finishedAt,
+        'score_obtained' => 5,
+    ]);
+    $question = $data['questions'][0];
+    $wrong = $question->options()->where('is_correct', false)->first();
+    $correct = $question->options()->where('is_correct', true)->first();
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $question->id, 'answer_option_id' => $wrong->id]);
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $question]), ['options' => [$correct->id]])
+        ->assertSessionHasErrors('options');
+
+    $attempt->refresh();
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$wrong->id])
+        ->and((float) $attempt->score_obtained)->toBe(5.0)
+        ->and($attempt->finished_at->equalTo($finishedAt))->toBeTrue();
+});
+
+it('rejects a stale attempt model after its database row is finalized', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $question = $data['questions'][0];
+    $wrong = $question->options()->where('is_correct', false)->first();
+    $correct = $question->options()->where('is_correct', true)->first();
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $question->id, 'answer_option_id' => $wrong->id]);
+    StudentAttempt::whereKey($attempt->id)->update(['finished_at' => now(), 'score_obtained' => 0]);
+
+    expect(fn () => app(AnswerSelectionWriter::class)->replace($attempt, $question, [$correct->id]))
+        ->toThrow(ValidationException::class);
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$wrong->id]);
+});
+
 it('rejects a foreign option for SINGLE without replacing the previous answer', function () {
     $data = seedExamTaking();
     $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
@@ -515,7 +558,7 @@ it('ExamStart start action redirects without TypeError', function () {
 
     Auth::login($data['student']);
 
-    $component = Livewire::test(\App\Livewire\Student\ExamStart::class, ['exam' => $data['exam']]);
+    $component = Livewire::test(ExamStart::class, ['exam' => $data['exam']]);
 
     // Calling start() should not throw TypeError after the return-type fix.
     $component->call('start');
@@ -542,7 +585,7 @@ it('ExamTake saveAndNext action redirects without TypeError', function () {
 
     Auth::login($data['student']);
 
-    $component = Livewire::test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt]);
+    $component = Livewire::test(ExamTake::class, ['attempt' => $attempt]);
 
     // Calling saveAndNext should redirect without TypeError after the return-type fix.
     $component->call('saveAndNext');
@@ -556,7 +599,7 @@ it('ExamTake saveAndNext rejects a foreign option without persistence', function
     [$single, $multiple] = $data['questions'];
     $foreign = $multiple->options()->where('is_correct', true)->first();
 
-    Livewire::actingAs($data['student'])->test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt])
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
         ->set("selectedOptions.{$single->id}", [$foreign->id])
         ->call('saveAndNext')
         ->assertHasErrors('options.0');
@@ -588,7 +631,7 @@ it('ExamTake finalize action redirects without TypeError', function () {
 
     Auth::login($data['student']);
 
-    $component = Livewire::test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt]);
+    $component = Livewire::test(ExamTake::class, ['attempt' => $attempt]);
 
     // Calling finalize should redirect to result without TypeError after the return-type fix.
     $component->call('finalize');
@@ -606,7 +649,7 @@ it('ExamTake finalize rejects a foreign option without persistence or grading', 
     [$single, $multiple] = $data['questions'];
     $foreign = $multiple->options()->where('is_correct', true)->first();
 
-    Livewire::actingAs($data['student'])->test(\App\Livewire\Student\ExamTake::class, ['attempt' => $attempt])
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
         ->set("selectedOptions.{$single->id}", [$foreign->id])
         ->call('finalize')
         ->assertHasErrors('options.0');

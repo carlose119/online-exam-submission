@@ -48,6 +48,22 @@ class AnswerSelectionWriter
         )->validate();
 
         DB::transaction(function () use ($attempt, $question, $selectedOptionIds): void {
+            $lockedAttempt = StudentAttempt::query()
+                ->lockForUpdate()
+                ->findOrFail($attempt->getKey());
+
+            if ($question->exam_id !== $lockedAttempt->exam_id) {
+                throw ValidationException::withMessages([
+                    'options' => 'The question does not belong to this exam attempt.',
+                ]);
+            }
+
+            if ($lockedAttempt->finished_at !== null) {
+                throw ValidationException::withMessages([
+                    'options' => 'Answers cannot be changed after the exam attempt is finished.',
+                ]);
+            }
+
             StudentAnswer::where('student_attempt_id', $attempt->id)
                 ->where('question_id', $question->id)
                 ->delete();

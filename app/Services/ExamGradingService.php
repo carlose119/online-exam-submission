@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\QuestionType;
 use App\Models\StudentAttempt;
+use Illuminate\Support\Facades\DB;
 
 class ExamGradingService
 {
@@ -23,33 +24,41 @@ class ExamGradingService
      */
     public function gradeAttempt(StudentAttempt $attempt): float
     {
-        // Idempotency: if already graded, return existing score.
-        if ($attempt->finished_at !== null) {
-            return (float) $attempt->score_obtained;
-        }
+        return DB::transaction(function () use ($attempt): float {
+            $lockedAttempt = StudentAttempt::query()
+                ->lockForUpdate()
+                ->findOrFail($attempt->getKey());
 
-        $totalScore = 0.0;
-        $exam = $attempt->exam()->firstOrFail();
-        $questions = $exam->questions()->orderBy('order')->get();
+            if ($lockedAttempt->finished_at !== null) {
+                $attempt->setRawAttributes($lockedAttempt->getAttributes(), true);
 
-        foreach ($questions as $question) {
-            $studentAnswers = $attempt->answers()
-                ->where('question_id', $question->id)
-                ->get();
-
-            if ($question->type === QuestionType::Single) {
-                $totalScore += $this->gradeSingle($question, $studentAnswers);
-            } elseif ($question->type === QuestionType::Multiple) {
-                $totalScore += $this->gradeMultiple($question, $studentAnswers);
+                return (float) $lockedAttempt->score_obtained;
             }
-        }
 
-        $attempt->update([
-            'score_obtained' => $totalScore,
-            'finished_at' => now(),
-        ]);
+            $totalScore = 0.0;
+            $exam = $lockedAttempt->exam()->firstOrFail();
+            $questions = $exam->questions()->orderBy('order')->get();
 
-        return $totalScore;
+            foreach ($questions as $question) {
+                $studentAnswers = $lockedAttempt->answers()
+                    ->where('question_id', $question->id)
+                    ->get();
+
+                if ($question->type === QuestionType::Single) {
+                    $totalScore += $this->gradeSingle($question, $studentAnswers);
+                } elseif ($question->type === QuestionType::Multiple) {
+                    $totalScore += $this->gradeMultiple($question, $studentAnswers);
+                }
+            }
+
+            $lockedAttempt->update([
+                'score_obtained' => $totalScore,
+                'finished_at' => now(),
+            ]);
+            $attempt->setRawAttributes($lockedAttempt->getAttributes(), true);
+
+            return $totalScore;
+        });
     }
 
     /**

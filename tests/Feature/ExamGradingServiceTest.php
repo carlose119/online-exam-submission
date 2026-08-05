@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\QuestionType;
 use App\Models\AnswerOption;
 use App\Models\Exam;
 use App\Models\Question;
@@ -8,7 +7,9 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use App\Services\AnswerSelectionWriter;
 use App\Services\ExamGradingService;
+use Illuminate\Validation\ValidationException;
 
 // ---------------------------------------------------------------------------
 // Helper: create a complete exam setup with teacher, class, exam, questions, and options
@@ -120,7 +121,7 @@ it('SINGLE question with correct answer awards full points', function () {
         'answer_option_id' => $correctOption->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(5.0);
@@ -157,7 +158,7 @@ it('SINGLE question with incorrect answer awards 0 points', function () {
         'answer_option_id' => $incorrectOption->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(0.0);
@@ -176,7 +177,7 @@ it('SINGLE question with a foreign correct option awards 0 points', function () 
         'answer_option_id' => $other->options()->first()->id,
     ]);
 
-    expect((new ExamGradingService())->gradeAttempt($attempt))->toBe(0.0);
+    expect((new ExamGradingService)->gradeAttempt($attempt))->toBe(0.0);
 });
 
 // ---------------------------------------------------------------------------
@@ -202,7 +203,7 @@ it('SINGLE question with no answer awards 0 points', function () {
 
     // Student left the question blank — no answer rows
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(0.0);
@@ -242,7 +243,7 @@ it('MULTIPLE question with all correct and no incorrect awards full points', fun
         ]);
     }
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(5.0);
@@ -289,7 +290,7 @@ it('MULTIPLE question with correct plus one incorrect awards 0 points', function
         'answer_option_id' => $incorrectOption->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(0.0);
@@ -327,7 +328,7 @@ it('MULTIPLE question with some correct but not all awards 0 points', function (
         'answer_option_id' => $partialOption->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(0.0);
@@ -357,7 +358,7 @@ it('MULTIPLE question with no options selected awards 0 points', function () {
 
     // Student left the question blank — no answer rows
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(0.0);
@@ -421,7 +422,7 @@ it('total score is the sum of points for correctly answered questions', function
         'answer_option_id' => $correctQ2->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
     $score = $service->gradeAttempt($attempt);
 
     expect($score)->toBe(10.0);
@@ -457,14 +458,12 @@ it('gradeAttempt is idempotent and returns the same score on second call', funct
         'answer_option_id' => $correctOption->id,
     ]);
 
-    $service = new ExamGradingService();
+    $service = new ExamGradingService;
 
     // First call: should compute and store score
     $score1 = $service->gradeAttempt($attempt);
     $finishedAt1 = $attempt->fresh()->finished_at;
-    $attempt->refresh();
-
-    // Second call: should be a no-op, return same score
+    // Second call uses the same model and should be a no-op.
     $score2 = $service->gradeAttempt($attempt);
     $finishedAt2 = $attempt->fresh()->finished_at;
 
@@ -472,4 +471,32 @@ it('gradeAttempt is idempotent and returns the same score on second call', funct
     expect($score2)->toBe(5.0);
     // finished_at should not change on re-grade
     expect($finishedAt2->timestamp)->toEqual($finishedAt1->timestamp);
+});
+
+it('grades the last committed replacement and rejects replacements after grading', function () {
+    $data = seedGradingTest([
+        [
+            'text' => 'What is 2+2?',
+            'type' => 'SINGLE',
+            'points' => 5,
+            'options' => [
+                ['text' => '3', 'is_correct' => false],
+                ['text' => '4', 'is_correct' => true],
+            ],
+        ],
+    ]);
+    $question = $data['exam']->questions()->first();
+    $wrong = $question->options()->where('is_correct', false)->first();
+    $correct = $question->options()->where('is_correct', true)->first();
+    $attempt = createAttempt($data['student'], $data['exam']);
+    $writer = new AnswerSelectionWriter;
+
+    $writer->replace($attempt, $question, [$wrong->id]);
+    $writer->replace($attempt, $question, [$correct->id]);
+    expect((new ExamGradingService)->gradeAttempt($attempt))->toBe(5.0);
+
+    expect(fn () => $writer->replace($attempt, $question, [$wrong->id]))
+        ->toThrow(ValidationException::class);
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$correct->id])
+        ->and((float) $attempt->fresh()->score_obtained)->toBe(5.0);
 });
