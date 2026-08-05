@@ -129,6 +129,28 @@
         <p class="welcome">Here are the classes you've joined.</p>
     </div>
 
+    <div class="card" style="margin-bottom:2.5rem;">
+        <h2 style="font-size:1.25rem;margin:0 0 0.5rem 0;">Calendar subscription</h2>
+        <p class="description">
+            Add this URL to Google Calendar or Outlook to subscribe to meetings from all your classes.
+        </p>
+        <label for="calendar-feed-url" style="display:block;font-size:0.8125rem;font-weight:600;margin-bottom:0.5rem;">
+            Subscription URL
+        </label>
+        <input id="calendar-feed-url" type="text" readonly value="{{ route('calendar.feed', ['token' => Auth::user()->feed_token]) }}" style="box-sizing:border-box;width:100%;padding:0.5rem;border:1px solid #cbd5e1;border-radius:4px;font-size:0.8125rem;">
+        <div style="display:flex;gap:0.75rem;margin-top:1rem;">
+            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('calendar-feed-url').value)" style="background:#2563eb;color:#fff;border:0;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.875rem;">
+                Copiar
+            </button>
+            <button type="button" wire:click="regenerateFeedToken" wire:confirm="Regenerating this URL invalidates every existing calendar subscription. Continue?" style="background:#dc2626;color:#fff;border:0;border-radius:6px;padding:0.5rem 1rem;cursor:pointer;font-size:0.875rem;">
+                Regenerar
+            </button>
+        </div>
+        <p class="description" style="margin:1rem 0 0;">
+            Do not share this URL: anyone with it can view your meeting metadata. Regenerating it invalidates prior subscriptions.
+        </p>
+    </div>
+
     @if ($classes->isEmpty())
         <div class="empty">
             <p>You haven't joined any classes yet.</p>

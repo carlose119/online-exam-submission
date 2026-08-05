@@ -43,7 +43,7 @@ Apply only the next autonomous slice; do not implement all three PRs in one appl
 
 ## Phase 3: Dashboard, Documentation, and Regression
 
-- [ ] 3.1 Modify `app/Livewire/Dashboard.php` and `resources/views/livewire/dashboard.blade.php`; lazily issue tokens, add `Calendar subscription`, read-only URL, `Copiar` via `navigator.clipboard`, and confirmed `Regenerar` warning that the old URL stops working.
-- [ ] 3.2 Add case 5 to `tests/Feature/CalendarFeedTest.php`; verify lazy rendering, URL/copy markup, confirmation directive, and regeneration makes old URL 404/new URL 200.
-- [ ] 3.3 Update `README.md` after iCalendar export with Google/Outlook subscription, past/future content, polling limits, compromise/regeneration guidance, and deferred per-class/RRULE/attendee/email scope; evidence: documented setup and limitations.
-- [ ] 3.4 Run `php artisan test tests/Feature/CalendarFeedTest.php`, `php artisan test tests/Feature/IcalExportTest.php`, then `php artisan test`; verify zero new Composer dependencies and existing single-meeting export remains green.
+- [x] 3.1 Modify `app/Livewire/Dashboard.php` and `resources/views/livewire/dashboard.blade.php`; lazily issue tokens, add `Calendar subscription`, read-only URL, `Copiar` via `navigator.clipboard`, and confirmed `Regenerar` warning that the old URL stops working.
+- [x] 3.2 Add case 5 to `tests/Feature/CalendarFeedTest.php`; verify lazy rendering, URL/copy markup, confirmation directive, and regeneration makes old URL 404/new URL 200.
+- [x] 3.3 Update `README.md` after iCalendar export with Google/Outlook subscription, past/future content, polling limits, compromise/regeneration guidance, and deferred per-class/RRULE/attendee/email scope; evidence: documented setup and limitations.
+- [x] 3.4 Run `php artisan test tests/Feature/CalendarFeedTest.php`, `php artisan test tests/Feature/IcalExportTest.php`, then `php artisan test`; verify zero new Composer dependencies and existing single-meeting export remains green.

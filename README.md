@@ -626,6 +626,28 @@ The following are explicitly out of scope for this change and will be implemente
 |------|-------|--------|
 | `tests/Feature/IcalExportTest.php` | 8 | Guest redirect, non-student 403, unsubscribed 403, valid .ics content (all 7 fields + headers), null-duration default (60 min), null agenda/meeting_url handling, no RRULE, dashboard "Download .ics" link |
 
+## Calendar Subscription Feed
+
+Students can subscribe to a private calendar feed that keeps meetings from all subscribed classes available in Google Calendar or Outlook.
+
+### How to Subscribe
+
+1. Log in as a student and open `/dashboard`.
+2. In **Calendar subscription**, copy the subscription URL.
+3. In Google Calendar, use **Other calendars → From URL**; in Outlook, use **Add calendar → Subscribe from web**. Paste the URL and save.
+
+The feed includes past and future meetings from every class you are subscribed to. Calendar providers poll subscription URLs on their own schedule, so meeting changes may not appear immediately even though the feed sends no-store headers.
+
+### Keep the URL Private
+
+The subscription URL is a bearer credential: anyone you share it with can view your meeting metadata. If it is compromised, click **Regenerar** on the dashboard and replace the URL in every calendar client. Regeneration immediately invalidates the prior URL and its subscriptions.
+
+### Deferred Scope
+
+- Per-class feeds are not available; this feed aggregates all of a student's subscribed classes.
+- Recurring meetings are exported as materialized events, not `RRULE` series.
+- Attendees, calendar alarms, and email notifications are not included.
+
 ## Running Tests
 
 ```bash

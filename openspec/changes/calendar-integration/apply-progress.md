@@ -2,7 +2,7 @@
 
 ## PR 1 — Foundation Token Lifecycle
 
-**Status**: PR 1 and PR 2 are complete; PR 3 remains pending.
+**Status**: PR 1, PR 2, and PR 3 implementation slices are complete; SDD verification and archive remain pending.
 
 ### Completed Tasks
 
@@ -70,3 +70,42 @@
 - PR 3 → `main`: tasks 3.1–3.4, dashboard UX, documentation, and regression verification.
 
 **Delivery**: stacked-to-main; PR 2 is the public-feed slice after local PR 1 commits `be29403` and `7e88439`. Receipt-driven delivery is disabled/unmanaged for this clone; no native review receipt was created.
+
+## PR 3 — Dashboard, Documentation, and Regression
+
+**Status**: complete for PR 3. All 10 implementation tasks are checked; this records apply progress only and does not claim SDD verification or archive completion.
+
+### Completed Tasks
+
+- [x] 3.1 Add lazy dashboard feed-token issuance and the confirmed Calendar subscription controls.
+- [x] 3.2 Add the fifth CalendarFeedTest scenario for dashboard rendering and token regeneration.
+- [x] 3.3 Document Google/Outlook subscription, polling, token compromise, and deferred scope.
+- [x] 3.4 Run focused calendar/export/dashboard regressions and the full suite with no Composer changes.
+
+### Changed Files
+
+- `app/Livewire/Dashboard.php` — issues a token only when absent and regenerates it through `User::regenerateFeedToken()`.
+- `resources/views/livewire/dashboard.blade.php` — adds the read-only subscription URL, Clipboard API copy control, confirmed regeneration, and bearer-URL warning.
+- `tests/Feature/CalendarFeedTest.php` — adds exactly the fifth case covering lazy issue, rendered URL/copy/confirmation markup, and old-404/new-200 rotation.
+- `README.md` — adds the Calendar Subscription Feed setup, limitations, compromise response, and deferred scope.
+- `openspec/changes/calendar-integration/tasks.md` — marks tasks 3.1–3.4, completing all 10 tasks.
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test | `php artisan test tests/Feature/CalendarFeedTest.php` — passed: 5 tests, 41 assertions. |
+| Export regression | `php artisan test tests/Feature/IcalExportTest.php` — passed: 8 tests, 31 assertions. |
+| Dashboard regression | `php artisan test tests/Feature/StudentDashboardTest.php` — passed: 15 tests, 58 assertions. |
+| Full suite | `php artisan test` — passed: 231 tests, 733 assertions. |
+| Formatter | `vendor/bin/pint app/Livewire/Dashboard.php tests/Feature/CalendarFeedTest.php`, then `vendor/bin/pint --test ...` — fixed the initial files and passed on the convergence check. |
+| Runtime harness | Authenticated dashboard request lazily issued a token and rendered its URL; the Livewire regeneration action made the old public feed URL 404 and the new URL 200 in the fifth CalendarFeedTest scenario. |
+| Composer audit | `git diff -- composer.json composer.lock` — no dependency or lockfile changes. |
+| Rollback boundary | Revert the dashboard component/view, fifth feed test, README section, and PR 3 task/progress updates; PR 1 token lifecycle and PR 2 public feed behavior remain intact. |
+
+### Remaining SDD Work
+
+- Run `sdd-verify`; it has not been run by this apply slice.
+- Run `sdd-archive` only after verification succeeds.
+
+**Delivery**: stacked-to-main, PR 3 → `main` after PR 2 commit `a2b97dc`; receipt-driven delivery is disabled/unmanaged for this clone. No commit, push, branch, PR, or native review receipt was created.

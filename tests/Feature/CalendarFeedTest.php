@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Dashboard;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\User;
@@ -7,6 +8,7 @@ use App\Services\IcalBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Livewire\Livewire;
 
 it('persists unique 64-character feed tokens and overwrites them on regeneration', function () {
     expect(Schema::hasColumn('users', 'feed_token'))->toBeTrue()
@@ -89,4 +91,28 @@ it('includes only subscribed meetings and materialized recurring instances', fun
 
     $meeting = $parent->fresh()->load('classroom.teacher');
     expect(app(IcalBuilder::class)->buildMany([$meeting]))->toBe(app(IcalBuilder::class)->build($meeting));
+});
+
+it('lazily issues a dashboard feed token and invalidates it on regeneration', function () {
+    $student = User::factory()->create(['role' => 'STUDENT']);
+
+    $dashboard = $this->actingAs($student)->get(route('dashboard'));
+    $oldToken = $student->fresh()->feed_token;
+
+    expect($oldToken)->toHaveLength(64);
+
+    $dashboard->assertOk()
+        ->assertSee(route('calendar.feed', ['token' => $oldToken]))
+        ->assertSee('navigator.clipboard.writeText', false)
+        ->assertSee('wire:confirm', false);
+
+    Livewire::actingAs($student)
+        ->test(Dashboard::class)
+        ->call('regenerateFeedToken');
+
+    $newToken = $student->fresh()->feed_token;
+
+    expect($newToken)->toHaveLength(64)->not->toBe($oldToken);
+    $this->get(route('calendar.feed', ['token' => $oldToken]))->assertNotFound();
+    $this->get(route('calendar.feed', ['token' => $newToken]))->assertOk();
 });

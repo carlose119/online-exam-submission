@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Models\Exam;
 use App\Models\StudentAttempt;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
@@ -14,12 +13,24 @@ use Livewire\Component;
 class Dashboard extends Component
 {
     /**
+     * Replace the authenticated student's calendar feed token.
+     */
+    public function regenerateFeedToken(): void
+    {
+        Auth::user()->regenerateFeedToken();
+    }
+
+    /**
      * Render the student dashboard with subscribed classes,
      * available exams, and completed exams.
      */
     public function render(): View
     {
         $student = Auth::user();
+
+        if ($student->feed_token === null) {
+            $student->generateFeedToken();
+        }
 
         $classes = $student->subscribedClasses()
             ->withCount(['studyMaterials', 'exams'])
