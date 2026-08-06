@@ -4,6 +4,7 @@ use App\Filament\Resources\ClassResource;
 use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 // ---------------------------------------------------------------------------
 // (a) Teacher lists only their own classes
@@ -56,7 +57,7 @@ it('auto-generates invitation_code on create', function () {
         'role' => 'TEACHER',
     ]);
 
-    $code = \Illuminate\Support\Str::random(8);
+    $code = Str::random(8);
 
     $class = SchoolClass::create([
         'title' => 'Algebra I',
@@ -171,7 +172,7 @@ it('regenerate produces new code different from old', function () {
     $oldCode = $class->invitation_code;
 
     // Generate a new code (simulating the regenerate action logic)
-    $code = \Illuminate\Support\Str::random(8);
+    $code = Str::random(8);
     $class->invitation_code = $code;
     $class->save();
 
@@ -245,13 +246,13 @@ it('two creates produce different invitation codes', function () {
     $class1 = SchoolClass::create([
         'title' => 'First Class',
         'teacher_id' => $teacher->id,
-        'invitation_code' => \Illuminate\Support\Str::random(8),
+        'invitation_code' => Str::random(8),
     ]);
 
     $class2 = SchoolClass::create([
         'title' => 'Second Class',
         'teacher_id' => $teacher->id,
-        'invitation_code' => \Illuminate\Support\Str::random(8),
+        'invitation_code' => Str::random(8),
     ]);
 
     expect($class1->invitation_code)->not->toBe($class2->invitation_code);

@@ -13,10 +13,10 @@ use Illuminate\Support\Carbon;
 
 it('shows the profile page for an authenticated student', function () {
     $student = User::create([
-        'name'     => 'Student Profile',
-        'email'    => 'student-profile@test.com',
+        'name' => 'Student Profile',
+        'email' => 'student-profile@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $this->actingAs($student)
@@ -30,10 +30,10 @@ it('shows the profile page for an authenticated student', function () {
 
 it('returns 403 for a teacher', function () {
     $teacher = User::create([
-        'name'     => 'Profile Teacher',
-        'email'    => 'profile-teacher@test.com',
+        'name' => 'Profile Teacher',
+        'email' => 'profile-teacher@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $this->actingAs($teacher)
@@ -47,10 +47,10 @@ it('returns 403 for a teacher', function () {
 
 it('returns 403 for an admin', function () {
     $admin = User::create([
-        'name'     => 'Profile Admin',
-        'email'    => 'profile-admin@test.com',
+        'name' => 'Profile Admin',
+        'email' => 'profile-admin@test.com',
         'password' => 'password',
-        'role'     => 'ADMIN',
+        'role' => 'ADMIN',
     ]);
 
     $this->actingAs($admin)
@@ -73,10 +73,10 @@ it('redirects guests to login', function () {
 
 it('shows user info: name, email, and role badge', function () {
     $student = User::create([
-        'name'     => 'María García',
-        'email'    => 'maria@example.com',
+        'name' => 'María García',
+        'email' => 'maria@example.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $this->actingAs($student)
@@ -93,68 +93,68 @@ it('shows user info: name, email, and role badge', function () {
 
 it('shows subscribed classes with counts and ordering (DESC by joined_at)', function () {
     $teacher = User::create([
-        'name'     => 'Prof. López',
-        'email'    => 'lopez@test.com',
+        'name' => 'Prof. López',
+        'email' => 'lopez@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $chemistry = SchoolClass::create([
-        'title'           => 'Chemistry 101',
-        'teacher_id'      => $teacher->id,
+        'title' => 'Chemistry 101',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'CHEM101X',
     ]);
 
     $physics = SchoolClass::create([
-        'title'           => 'Physics 202',
-        'teacher_id'      => $teacher->id,
+        'title' => 'Physics 202',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'PHYS202X',
     ]);
 
     // Attach materials, exams, and meetings for counts
     StudyMaterial::create([
-        'class_id'         => $physics->id,
-        'title'            => 'Physics Notes',
-        'type'             => 'FILE',
+        'class_id' => $physics->id,
+        'title' => 'Physics Notes',
+        'type' => 'FILE',
         'file_path_or_url' => 'physics-notes.pdf',
     ]);
     StudyMaterial::create([
-        'class_id'         => $physics->id,
-        'title'            => 'Physics Slides',
-        'type'             => 'FILE',
+        'class_id' => $physics->id,
+        'title' => 'Physics Slides',
+        'type' => 'FILE',
         'file_path_or_url' => 'physics-slides.pdf',
     ]);
     StudyMaterial::create([
-        'class_id'         => $physics->id,
-        'title'            => 'Physics Video',
-        'type'             => 'LINK',
+        'class_id' => $physics->id,
+        'title' => 'Physics Video',
+        'type' => 'LINK',
         'file_path_or_url' => 'https://example.com/video',
     ]);
 
     Exam::create([
-        'class_id'         => $physics->id,
-        'title'            => 'Physics Midterm',
+        'class_id' => $physics->id,
+        'title' => 'Physics Midterm',
         'duration_minutes' => 60,
-        'max_score'        => 100,
+        'max_score' => 100,
     ]);
     Exam::create([
-        'class_id'         => $physics->id,
-        'title'            => 'Physics Final',
+        'class_id' => $physics->id,
+        'title' => 'Physics Final',
         'duration_minutes' => 90,
-        'max_score'        => 100,
+        'max_score' => 100,
     ]);
 
     Meeting::create([
-        'class_id'      => $physics->id,
-        'title'         => 'Physics Live Q&A',
-        'scheduled_at'  => now()->addDay(),
+        'class_id' => $physics->id,
+        'title' => 'Physics Live Q&A',
+        'scheduled_at' => now()->addDay(),
     ]);
 
     $student = User::create([
-        'name'     => 'Class Student',
-        'email'    => 'class-student@test.com',
+        'name' => 'Class Student',
+        'email' => 'class-student@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     // Join Chemistry first, then Physics later
@@ -194,10 +194,10 @@ it('shows subscribed classes with counts and ordering (DESC by joined_at)', func
 
 it('shows empty state when no subscribed classes', function () {
     $student = User::create([
-        'name'     => 'Solo Student',
-        'email'    => 'solo@test.com',
+        'name' => 'Solo Student',
+        'email' => 'solo@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $this->actingAs($student)
@@ -212,10 +212,10 @@ it('shows empty state when no subscribed classes', function () {
 
 it('does not show deferred features (exam history, meeting history, password form, unjoin button, editable fields)', function () {
     $student = User::create([
-        'name'     => 'Deferred Student',
-        'email'    => 'deferred@test.com',
+        'name' => 'Deferred Student',
+        'email' => 'deferred@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $response = $this->actingAs($student)
@@ -246,10 +246,10 @@ it('does not show deferred features (exam history, meeting history, password for
 
 it('shows the dashboard Mi perfil link', function () {
     $student = User::create([
-        'name'     => 'Link Student',
-        'email'    => 'link-student@test.com',
+        'name' => 'Link Student',
+        'email' => 'link-student@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $this->actingAs($student)

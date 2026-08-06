@@ -4,8 +4,8 @@ use App\Enums\QuestionType;
 use App\Models\AnswerOption;
 use App\Models\Exam;
 use App\Models\Question;
-use App\Models\User;
 use App\Models\SchoolClass;
+use App\Models\User;
 
 // ---------------------------------------------------------------------------
 // (a) Question relationships resolve correctly

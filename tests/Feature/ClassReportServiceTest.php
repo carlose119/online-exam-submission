@@ -15,7 +15,7 @@ it('returns a structured array with expected keys for a class with exams', funct
     $class = SchoolClass::create(['title' => 'Math 101', 'description' => 'Basic Math', 'teacher_id' => $teacher->id, 'invitation_code' => 'MATH101']);
     $exam = Exam::create(['class_id' => $class->id, 'title' => 'Quiz 1', 'max_score' => 20, 'duration_minutes' => 30]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result)->toBeArray();
@@ -34,7 +34,7 @@ it('includes class exams in the structured array', function () {
     $examA = Exam::create(['class_id' => $class->id, 'title' => 'Exam A', 'max_score' => 10, 'duration_minutes' => 15]);
     $examB = Exam::create(['class_id' => $class->id, 'title' => 'Exam B', 'max_score' => 20, 'duration_minutes' => 30]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'])->toHaveCount(2);
@@ -53,7 +53,7 @@ it('includes each exam attempts in the drill-down', function () {
     StudentAttempt::create(['student_id' => $studentA->id, 'exam_id' => $exam->id, 'score_obtained' => 85, 'started_at' => now(), 'finished_at' => now()]);
     StudentAttempt::create(['student_id' => $studentB->id, 'exam_id' => $exam->id, 'score_obtained' => 92, 'started_at' => now(), 'finished_at' => now()]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'][0]['attempts'])->toHaveCount(2);
@@ -78,7 +78,7 @@ it('computes per-exam stats (avg score, pass rate, attempts count) correctly', f
         StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => $score, 'started_at' => now(), 'finished_at' => now()]);
     }
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     $stats = $result['exams'][0]['stats'];
@@ -107,7 +107,7 @@ it('computes overall stats correctly across multiple exams', function () {
     StudentAttempt::create(['student_id' => $student3->id, 'exam_id' => $examB->id, 'score_obtained' => 8, 'started_at' => now(), 'finished_at' => now()]);
     StudentAttempt::create(['student_id' => $student4->id, 'exam_id' => $examB->id, 'score_obtained' => 4, 'started_at' => now(), 'finished_at' => now()]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['overall_stats']['total_attempts'])->toBe(5);
@@ -129,7 +129,7 @@ it('computes pass rate correctly: 3 of 5 students pass with max_score 20', funct
         StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => $score, 'started_at' => now(), 'finished_at' => now()]);
     }
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'][0]['stats']['pass_rate'])->toBe(60.00); // 3/5 * 100
@@ -141,7 +141,7 @@ it('sorts exams by title', function () {
     Exam::create(['class_id' => $class->id, 'title' => 'Zeta Exam', 'max_score' => 10, 'duration_minutes' => 10]);
     Exam::create(['class_id' => $class->id, 'title' => 'Alpha Exam', 'max_score' => 10, 'duration_minutes' => 10]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     $titles = array_column(array_column($result['exams'], 'exam'), 'title');
@@ -158,7 +158,7 @@ it('sorts attempts by student name', function () {
     StudentAttempt::create(['student_id' => $bob->id, 'exam_id' => $exam->id, 'score_obtained' => 8, 'started_at' => now(), 'finished_at' => now()]);
     StudentAttempt::create(['student_id' => $alice->id, 'exam_id' => $exam->id, 'score_obtained' => 7, 'started_at' => now(), 'finished_at' => now()]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'][0]['attempts'][0]['student_name'])->toBe('Alice');
@@ -169,7 +169,7 @@ it('returns valid empty structure for a class with no exams', function () {
     $teacher = User::create(['name' => 'Teacher', 'email' => 't@test.com', 'password' => 'password', 'role' => 'TEACHER']);
     $class = SchoolClass::create(['title' => 'Empty Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'EMPTY']);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['class']['title'])->toBe('Empty Class');
@@ -184,7 +184,7 @@ it('returns exams with empty attempts and zero stats for a class with exams but 
     $class = SchoolClass::create(['title' => 'No Attempts', 'teacher_id' => $teacher->id, 'invitation_code' => 'NOATT']);
     Exam::create(['class_id' => $class->id, 'title' => 'Untaken Exam', 'max_score' => 20, 'duration_minutes' => 30]);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'])->toHaveCount(1);
@@ -207,7 +207,7 @@ it('computes correct all-pass (100%) scenario', function () {
         StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => $score, 'started_at' => now(), 'finished_at' => now()]);
     }
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'][0]['stats']['pass_rate'])->toBe(100.00);
@@ -227,11 +227,11 @@ it('computes correct all-fail (0%) scenario', function () {
         StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => $score, 'started_at' => now(), 'finished_at' => now()]);
     }
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['exams'][0]['stats']['pass_rate'])->toBe(0.00);
-    expect($result['exams'][0]['stats']['avg_score'])->toBe(round((11+10+5)/3, 2));
+    expect($result['exams'][0]['stats']['avg_score'])->toBe(round((11 + 10 + 5) / 3, 2));
     expect($result['exams'][0]['stats']['median'])->toBe(10.00);
 });
 
@@ -239,7 +239,7 @@ it('returns teacher name from the loaded relationship', function () {
     $teacher = User::create(['name' => 'Alice Teacher', 'email' => 'alice@test.com', 'password' => 'password', 'role' => 'TEACHER']);
     $class = SchoolClass::create(['title' => 'Teacher Test', 'teacher_id' => $teacher->id, 'invitation_code' => 'TEACH']);
 
-    $service = new ClassReportService();
+    $service = new ClassReportService;
     $result = $service->generate($class);
 
     expect($result['teacher']['name'])->toBe('Alice Teacher');

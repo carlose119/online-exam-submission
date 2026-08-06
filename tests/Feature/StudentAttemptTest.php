@@ -7,6 +7,8 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,7 +128,7 @@ it('prevents duplicate attempts for the same student and exam', function () {
         'exam_id' => $data['exam']->id,
         'started_at' => now(),
     ]);
-})->throws(\Illuminate\Database\QueryException::class);
+})->throws(QueryException::class);
 
 // ---------------------------------------------------------------------------
 // UNIQUE constraint: different student, same exam → allowed
@@ -216,7 +218,7 @@ it('prevents duplicate answer rows for the same attempt, question, and option', 
         'question_id' => $data['question']->id,
         'answer_option_id' => $data['correct']->id,
     ]);
-})->throws(\Illuminate\Database\QueryException::class);
+})->throws(QueryException::class);
 
 // ---------------------------------------------------------------------------
 // Date casts: started_at and finished_at are Carbon instances
@@ -231,11 +233,11 @@ it('casts started_at and finished_at as datetime', function () {
         'started_at' => now(),
     ]);
 
-    expect($attempt->started_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($attempt->started_at)->toBeInstanceOf(Carbon::class);
     expect($attempt->finished_at)->toBeNull();
 
     $attempt->update(['finished_at' => now()]);
     $attempt->refresh();
 
-    expect($attempt->finished_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($attempt->finished_at)->toBeInstanceOf(Carbon::class);
 });

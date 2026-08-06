@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\ClassUser;
 use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 // ---------------------------------------------------------------------------
 // Pivot table has expected columns
@@ -37,7 +39,7 @@ it('class_user table has expected columns', function () {
     ]);
 
     // Verify timestamps are populated
-    $row = \App\Models\ClassUser::first();
+    $row = ClassUser::first();
     expect($row->created_at)->not->toBeNull();
     expect($row->updated_at)->not->toBeNull();
 });
@@ -73,7 +75,7 @@ it('unique constraint blocks duplicate class_user rows', function () {
     // Second insert bypasses Eloquent — should throw
     $this->expectException(QueryException::class);
 
-    \Illuminate\Support\Facades\DB::table('class_user')->insert([
+    DB::table('class_user')->insert([
         'class_id' => $class->id,
         'user_id' => $student->id,
         'created_at' => now(),

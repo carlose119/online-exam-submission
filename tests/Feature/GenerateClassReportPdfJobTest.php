@@ -6,7 +6,8 @@ use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
-use Illuminate\Support\Facades\Bus;
+use App\Services\ClassReportService;
+use App\Services\ReportFormatService;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -26,7 +27,7 @@ it('dispatches GenerateClassReportPdf job when pushed to queue', function () {
 
     GenerateClassReportPdf::dispatch($class->id, $teacher->id);
 
-    Queue::assertPushed(GenerateClassReportPdf::class, function ($job) use ($class, $teacher) {
+    Queue::assertPushed(GenerateClassReportPdf::class, function ($job) {
         return true;
     });
 });
@@ -58,7 +59,7 @@ it('generates and stores PDF file when job is processed', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 15, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportPdf($class->id, $teacher->id);
-    $job->handle(app(\App\Services\ClassReportService::class), app(\App\Services\ReportFormatService::class));
+    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
 
     // A PDF file should now exist on the reports disk.
     $files = Storage::disk('reports')->allFiles();
@@ -66,7 +67,7 @@ it('generates and stores PDF file when job is processed', function () {
 
     $pdfFile = collect($files)->first(fn ($f) => str_ends_with($f, '.pdf'));
     expect($pdfFile)->not->toBeNull();
-    expect($pdfFile)->toContain('class-' . $class->id);
+    expect($pdfFile)->toContain('class-'.$class->id);
     expect($pdfFile)->toEndWith('.pdf');
 });
 
@@ -82,14 +83,14 @@ it('generates and stores Excel file when job is processed', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 9, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportExcel($class->id, $teacher->id);
-    $job->handle(app(\App\Services\ClassReportService::class), app(\App\Services\ReportFormatService::class));
+    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
 
     $files = Storage::disk('reports')->allFiles();
     expect($files)->not->toBeEmpty();
 
     $xlsxFile = collect($files)->first(fn ($f) => str_ends_with($f, '.xlsx'));
     expect($xlsxFile)->not->toBeNull();
-    expect($xlsxFile)->toContain('class-' . $class->id);
+    expect($xlsxFile)->toContain('class-'.$class->id);
 });
 
 // ---------------------------------------------------------------------------
@@ -105,8 +106,8 @@ it('handles missing class gracefully without throwing', function () {
     $job = new GenerateClassReportPdf(99999, $teacher->id);
 
     // Should not throw an exception for a non-existent class.
-    expect(fn () => $job->handle(app(\App\Services\ClassReportService::class), app(\App\Services\ReportFormatService::class)))
-        ->not->toThrow(\Exception::class);
+    expect(fn () => $job->handle(app(ClassReportService::class), app(ReportFormatService::class)))
+        ->not->toThrow(Exception::class);
 });
 
 it('handles missing user gracefully without throwing', function () {
@@ -118,8 +119,8 @@ it('handles missing user gracefully without throwing', function () {
 
     $job = new GenerateClassReportPdf($class->id, 99999);
 
-    expect(fn () => $job->handle(app(\App\Services\ClassReportService::class), app(\App\Services\ReportFormatService::class)))
-        ->not->toThrow(\Exception::class);
+    expect(fn () => $job->handle(app(ClassReportService::class), app(ReportFormatService::class)))
+        ->not->toThrow(Exception::class);
 });
 
 // ---------------------------------------------------------------------------
@@ -155,7 +156,7 @@ it('sends database notification to user when PDF job completes', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 18, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportPdf($class->id, $teacher->id);
-    $job->handle(app(\App\Services\ClassReportService::class), app(\App\Services\ReportFormatService::class));
+    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
 
     // Assert a database notification was created for the teacher.
     $this->assertDatabaseHas('notifications', [

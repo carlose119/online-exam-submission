@@ -8,6 +8,7 @@ use App\Models\Question;
 use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
@@ -289,8 +290,8 @@ it('creating an exam via the form persists the exam, questions, and options', fu
     // Directly set the options state with 2 items (minItems(2) requirement).
     // Use the existing option UUID key plus a new one.
     $existingOptionKeys = array_keys($data['questions'][$qKey]['options'] ?? []);
-    $optKey1 = $existingOptionKeys[0] ?? \Illuminate\Support\Str::uuid()->toString();
-    $optKey2 = \Illuminate\Support\Str::uuid()->toString();
+    $optKey1 = $existingOptionKeys[0] ?? Str::uuid()->toString();
+    $optKey2 = Str::uuid()->toString();
 
     $component->set("data.questions.{$qKey}.options", [
         $optKey1 => ['text' => '3', 'is_correct' => false],

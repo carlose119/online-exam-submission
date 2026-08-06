@@ -210,7 +210,7 @@ it('materials can be queried in created_at DESC order', function () {
     ]);
 
     // created_at is not in Fillable — set it via property assignment
-    $m1 = new StudyMaterial();
+    $m1 = new StudyMaterial;
     $m1->class_id = $class->id;
     $m1->title = 'First Created';
     $m1->type = StudyMaterialType::File;
@@ -218,7 +218,7 @@ it('materials can be queried in created_at DESC order', function () {
     $m1->created_at = '2026-07-01 10:00:00';
     $m1->save();
 
-    $m2 = new StudyMaterial();
+    $m2 = new StudyMaterial;
     $m2->class_id = $class->id;
     $m2->title = 'Second Created';
     $m2->type = StudyMaterialType::Link;
@@ -226,7 +226,7 @@ it('materials can be queried in created_at DESC order', function () {
     $m2->created_at = '2026-07-03 10:00:00';
     $m2->save();
 
-    $m3 = new StudyMaterial();
+    $m3 = new StudyMaterial;
     $m3->class_id = $class->id;
     $m3->title = 'Third Created';
     $m3->type = StudyMaterialType::Meeting;

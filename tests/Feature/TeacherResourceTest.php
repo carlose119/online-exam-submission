@@ -2,6 +2,7 @@
 
 use App\Filament\Resources\TeacherResource;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -173,7 +174,7 @@ it('rejects duplicate email at the database level', function () {
         'email' => 'dupe@example.com',
         'password' => 'pw',
         'role' => 'TEACHER',
-    ]))->toThrow(\Illuminate\Database\QueryException::class);
+    ]))->toThrow(QueryException::class);
 });
 
 // ---------------------------------------------------------------------------

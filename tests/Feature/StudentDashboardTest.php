@@ -2,8 +2,6 @@
 
 use App\Models\Exam;
 use App\Models\Meeting;
-use App\Models\Question;
-use App\Models\AnswerOption;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
@@ -580,10 +578,10 @@ it('dashboard shows join button for live meetings with url set', function () {
 
 it('dashboard displays Mi perfil link', function () {
     $student = User::create([
-        'name'     => 'Link Student',
-        'email'    => 'link-dash@test.com',
+        'name' => 'Link Student',
+        'email' => 'link-dash@test.com',
         'password' => 'password',
-        'role'     => 'STUDENT',
+        'role' => 'STUDENT',
     ]);
 
     $response = $this->actingAs($student)
