@@ -30,7 +30,7 @@ class ClassReport extends Page
     }
 
     /**
-     * @return array<int, \Filament\Actions\Action>
+     * @return array<int, Action>
      */
     protected function getHeaderActions(): array
     {

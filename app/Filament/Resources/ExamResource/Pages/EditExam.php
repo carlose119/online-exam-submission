@@ -44,8 +44,8 @@ class EditExam extends EditRecord
 
                     return new HtmlString(
                         '<pre style="max-height: 400px; overflow-y: auto; background: #1e1e2e; color: #cdd6f4; padding: 1rem; border-radius: 0.5rem; font-size: 0.875rem;">'
-                        . e(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE))
-                        . '</pre>'
+                        .e(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE))
+                        .'</pre>'
                     );
                 }),
         ];

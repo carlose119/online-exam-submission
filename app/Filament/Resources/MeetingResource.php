@@ -13,12 +13,12 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\RichEditor;
-use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -91,9 +91,9 @@ class MeetingResource extends Resource
                     ->schema([
                         Select::make('frequency')
                             ->options([
-                                'weekly'   => 'Weekly',
+                                'weekly' => 'Weekly',
                                 'biweekly' => 'Biweekly',
-                                'monthly'  => 'Monthly',
+                                'monthly' => 'Monthly',
                             ])
                             ->default('weekly')
                             ->required(),

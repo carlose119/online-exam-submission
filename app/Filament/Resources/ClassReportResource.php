@@ -5,10 +5,10 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ClassReportResource\Pages\ClassReport;
 use App\Filament\Resources\ClassReportResource\Pages\ListClassReports;
 use App\Models\SchoolClass;
+use Filament\Actions\Action;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 

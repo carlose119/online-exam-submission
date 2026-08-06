@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\SchoolClass;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -10,20 +11,17 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ClassReportExcelExport implements FromCollection, WithHeadings, WithTitle, WithStyles, ShouldAutoSize
+class ClassReportExcelExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles, WithTitle
 {
     /**
      * @param  array  $data  The structured array from ClassReportService::generate()
-     * @param  \App\Models\SchoolClass  $class
+     * @param  SchoolClass  $class
      */
     public function __construct(
         private readonly array $data,
         private readonly mixed $class,
     ) {}
 
-    /**
-     * @return Collection
-     */
     public function collection(): Collection
     {
         $rows = [];
@@ -43,9 +41,6 @@ class ClassReportExcelExport implements FromCollection, WithHeadings, WithTitle,
         return collect($rows);
     }
 
-    /**
-     * @return array
-     */
     public function headings(): array
     {
         return [
@@ -56,9 +51,6 @@ class ClassReportExcelExport implements FromCollection, WithHeadings, WithTitle,
         ];
     }
 
-    /**
-     * @return string
-     */
     public function title(): string
     {
         $title = $this->data['class']['title'] ?? 'Class Report';

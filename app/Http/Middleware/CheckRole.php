@@ -11,14 +11,12 @@ class CheckRole
     /**
      * @param  list<string>  $roles
      */
-    public function __construct(protected array $roles = [])
-    {
-    }
+    public function __construct(protected array $roles = []) {}
 
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {

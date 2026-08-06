@@ -25,7 +25,7 @@ class IcalExportController extends Controller
 
         return response($icsContent, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
-            'Content-Disposition' => 'attachment; filename="meeting-' . $meeting->id . '.ics"',
+            'Content-Disposition' => 'attachment; filename="meeting-'.$meeting->id.'.ics"',
         ]);
     }
 }

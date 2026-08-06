@@ -14,7 +14,6 @@ class ReportFormatService
      * Generate a PDF report for a class and store it on the reports disk.
      *
      * @param  array  $data  Structured data from ClassReportService::generate()
-     * @param  SchoolClass  $class
      * @return string The filename (not full path) stored on the reports disk.
      */
     public function toPdf(array $data, SchoolClass $class): string
@@ -38,7 +37,6 @@ class ReportFormatService
      * Generate an Excel report for a class and store it on the reports disk.
      *
      * @param  array  $data  Structured data from ClassReportService::generate()
-     * @param  SchoolClass  $class
      * @return string The filename (not full path) stored on the reports disk.
      */
     public function toExcel(array $data, SchoolClass $class): string

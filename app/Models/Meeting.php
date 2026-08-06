@@ -139,26 +139,26 @@ class Meeting extends Model
         }
 
         $frequency = $rule['frequency'] ?? 'weekly';
-        $interval  = (int) ($rule['interval'] ?? 1);
+        $interval = (int) ($rule['interval'] ?? 1);
         $childCount = $count - 1;
-        $children   = new Collection;
+        $children = new Collection;
 
         for ($i = 1; $i <= $childCount; $i++) {
             $childScheduledAt = match ($frequency) {
                 'biweekly' => $this->scheduled_at->copy()->addWeeks($interval * $i * 2),
-                'monthly'  => $this->scheduled_at->copy()->addMonthsNoOverflow($interval * $i),
-                default    => $this->scheduled_at->copy()->addWeeks($interval * $i), // weekly
+                'monthly' => $this->scheduled_at->copy()->addMonthsNoOverflow($interval * $i),
+                default => $this->scheduled_at->copy()->addWeeks($interval * $i), // weekly
             };
 
             $children->push(static::create([
-                'class_id'         => $this->class_id,
-                'title'            => $this->title,
-                'scheduled_at'     => $childScheduledAt,
+                'class_id' => $this->class_id,
+                'title' => $this->title,
+                'scheduled_at' => $childScheduledAt,
                 'duration_minutes' => $this->duration_minutes ?? 60,
-                'meeting_url'      => $this->meeting_url,
-                'agenda'           => $this->agenda,
-                'recurrence_rule'  => null,
-                'parent_id'        => $this->id,
+                'meeting_url' => $this->meeting_url,
+                'agenda' => $this->agenda,
+                'recurrence_rule' => null,
+                'parent_id' => $this->id,
             ]));
         }
 

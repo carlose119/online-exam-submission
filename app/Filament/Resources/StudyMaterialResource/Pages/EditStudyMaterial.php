@@ -52,7 +52,7 @@ class EditStudyMaterial extends EditRecord
                         ->persistent()
                         ->send();
 
-                    $this->js('navigator.clipboard.writeText("' . addslashes($url) . '").then(() => console.log("copied")).catch(() => console.warn("clipboard fail"))');
+                    $this->js('navigator.clipboard.writeText("'.addslashes($url).'").then(() => console.log("copied")).catch(() => console.warn("clipboard fail"))');
                 }),
         ];
     }
@@ -72,7 +72,7 @@ class EditStudyMaterial extends EditRecord
         if (($data['type'] ?? null) === StudyMaterialType::Meeting->value) {
             $data['extra_metadata'] = [
                 'meeting_title' => $data['meeting_title'] ?? null,
-                'scheduled_at'   => $data['scheduled_at'] ?? null,
+                'scheduled_at' => $data['scheduled_at'] ?? null,
             ];
         }
         unset($data['meeting_title'], $data['scheduled_at']);
@@ -95,7 +95,7 @@ class EditStudyMaterial extends EditRecord
                 : json_decode($data['extra_metadata'], true);
 
             $data['meeting_title'] = $metadata['meeting_title'] ?? null;
-            $data['scheduled_at']  = $metadata['scheduled_at'] ?? null;
+            $data['scheduled_at'] = $metadata['scheduled_at'] ?? null;
         }
 
         return $data;

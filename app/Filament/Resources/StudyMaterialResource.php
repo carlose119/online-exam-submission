@@ -16,12 +16,13 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class StudyMaterialResource extends Resource
@@ -32,7 +33,7 @@ class StudyMaterialResource extends Resource
 
     protected static ?string $navigationLabel = 'Study Materials';
 
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->whereHas('classroom', fn ($q) => $q->where('teacher_id', Auth::id()));
     }
@@ -69,7 +70,7 @@ class StudyMaterialResource extends Resource
                     ->label('File')
                     ->visible(fn (Get $get): bool => $get('type') === StudyMaterialType::File->value)
                     ->disk('public')
-                    ->directory(fn (Get $get): string => 'materials/' . $get('class_id'))
+                    ->directory(fn (Get $get): string => 'materials/'.$get('class_id'))
                     ->acceptedFileTypes([
                         'application/pdf',
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

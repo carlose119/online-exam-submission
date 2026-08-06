@@ -6,6 +6,8 @@ use App\Filament\Resources\ClassResource\Pages\CreateClass;
 use App\Filament\Resources\ClassResource\Pages\EditClass;
 use App\Filament\Resources\ClassResource\Pages\ListClasses;
 use App\Models\SchoolClass;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Textarea;
@@ -15,8 +17,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
 class ClassResource extends Resource
@@ -27,7 +28,7 @@ class ClassResource extends Resource
 
     protected static ?string $navigationLabel = 'Classes';
 
-    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
             ->where('teacher_id', Auth::id())

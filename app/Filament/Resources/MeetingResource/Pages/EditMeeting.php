@@ -22,10 +22,10 @@ class EditMeeting extends EditRecord
         $this->record->children()
             ->where('scheduled_at', '>=', now())
             ->update([
-                'title'            => $this->record->title,
-                'agenda'           => $this->record->agenda,
+                'title' => $this->record->title,
+                'agenda' => $this->record->agenda,
                 'duration_minutes' => $this->record->duration_minutes,
-                'meeting_url'      => $this->record->meeting_url,
+                'meeting_url' => $this->record->meeting_url,
             ]);
     }
 }

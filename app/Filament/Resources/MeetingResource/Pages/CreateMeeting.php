@@ -19,11 +19,11 @@ class CreateMeeting extends CreateRecord
 
         if ($isRecurring) {
             $data['recurrence_rule'] = json_encode([
-                'frequency'     => $data['frequency'] ?? 'weekly',
-                'interval'      => (int) ($data['interval'] ?? 1),
-                'count'         => (int) ($data['count'] ?? 12),
-                'until'         => null,
-                'days_of_week'  => null,
+                'frequency' => $data['frequency'] ?? 'weekly',
+                'interval' => (int) ($data['interval'] ?? 1),
+                'count' => (int) ($data['count'] ?? 12),
+                'until' => null,
+                'days_of_week' => null,
             ]);
         } else {
             $data['recurrence_rule'] = null;
@@ -42,7 +42,7 @@ class CreateMeeting extends CreateRecord
     protected function afterCreate(): void
     {
         $isRecurring = (bool) ($this->data['is_recurring'] ?? false);
-        $count       = (int)  ($this->data['count'] ?? 1);
+        $count = (int) ($this->data['count'] ?? 1);
 
         if ($isRecurring && $count > 1) {
             $this->record->generateInstances($count);

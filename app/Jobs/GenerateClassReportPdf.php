@@ -17,9 +17,6 @@ class GenerateClassReportPdf implements ShouldQueue
 
     /**
      * Create a new job instance.
-     *
-     * @param  int  $classId
-     * @param  int  $userId
      */
     public function __construct(
         private readonly int $classId,

@@ -48,6 +48,6 @@ class JoinClassController extends Controller
         ], []);
 
         return redirect()->route('dashboard')
-            ->with('status', 'You have joined ' . $class->title . '!');
+            ->with('status', 'You have joined '.$class->title.'!');
     }
 }

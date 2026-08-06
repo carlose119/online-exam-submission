@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportDownloadController extends Controller
 {
@@ -14,7 +15,7 @@ class ReportDownloadController extends Controller
      * Only authenticated ADMIN and TEACHER users can access this route
      * (enforced via the `auth` + `role:admin,teacher` middleware on the route).
      */
-    public function download(string $filename): \Symfony\Component\HttpFoundation\StreamedResponse|\Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function download(string $filename): StreamedResponse|BinaryFileResponse
     {
         // Path-traversal guard: ensure filename contains no directory separators.
         if ($filename !== basename($filename)) {
