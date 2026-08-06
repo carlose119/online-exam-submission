@@ -143,4 +143,4 @@ The calendar subscription implementation is represented by [`openspec/changes/ca
 
 ## License
 
-This project declares the MIT license in [`composer.json`](composer.json).
+This project is available under the [MIT License](LICENSE), consistently declared in [`composer.json`](composer.json).
