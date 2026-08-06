@@ -21,36 +21,36 @@ it('adds the recurrence_rule and parent_id columns to the meetings table', funct
 
 it('has the parent, children, isRecurring, recurrenceRule, and generateInstances methods', function () {
     $teacher = User::create([
-        'name'     => 'RecurModel Teacher',
-        'email'    => 'recurmodel@test.com',
+        'name' => 'RecurModel Teacher',
+        'email' => 'recurmodel@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'RecurModel Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'RecurModel Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'RECMOD01',
     ]);
 
     // Parent with recurrence rule
     $parent = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Weekly Standup',
+        'class_id' => $class->id,
+        'title' => 'Weekly Standup',
         'scheduled_at' => now()->addHour(),
         'recurrence_rule' => json_encode([
             'frequency' => 'weekly',
-            'interval'  => 1,
-            'count'     => 4,
+            'interval' => 1,
+            'count' => 4,
         ]),
     ]);
 
     // Child with parent_id
     $child = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Weekly Standup',
+        'class_id' => $class->id,
+        'title' => 'Weekly Standup',
         'scheduled_at' => now()->addWeek(),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     // --- parent() relation ---
@@ -73,12 +73,12 @@ it('has the parent, children, isRecurring, recurrenceRule, and generateInstances
 
     // --- generateInstances() ---
     $parent2 = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Biweekly Sync',
+        'class_id' => $class->id,
+        'title' => 'Biweekly Sync',
         'scheduled_at' => now()->addHour(),
         'recurrence_rule' => json_encode([
             'frequency' => 'biweekly',
-            'interval'  => 1,
+            'interval' => 1,
         ]),
     ]);
 
@@ -96,8 +96,8 @@ it('has the parent, children, isRecurring, recurrenceRule, and generateInstances
 
     // Verify scheduling: weekly should be +7*days, biweekly should be +14*days
     $weekly = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Weekly',
+        'class_id' => $class->id,
+        'title' => 'Weekly',
         'scheduled_at' => now()->parse('2026-08-01 10:00:00'),
         'recurrence_rule' => json_encode(['frequency' => 'weekly', 'interval' => 1]),
     ]);
@@ -108,8 +108,8 @@ it('has the parent, children, isRecurring, recurrenceRule, and generateInstances
 
     // Biweekly should be +14 days per interval
     $biweekly = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Biweekly',
+        'class_id' => $class->id,
+        'title' => 'Biweekly',
         'scheduled_at' => now()->parse('2026-08-01 10:00:00'),
         'recurrence_rule' => json_encode(['frequency' => 'biweekly', 'interval' => 1]),
     ]);
@@ -120,8 +120,8 @@ it('has the parent, children, isRecurring, recurrenceRule, and generateInstances
 
     // Monthly should use addMonthsNoOverflow
     $monthly = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Monthly',
+        'class_id' => $class->id,
+        'title' => 'Monthly',
         'scheduled_at' => now()->parse('2026-01-31 10:00:00'),
         'recurrence_rule' => json_encode(['frequency' => 'monthly', 'interval' => 1]),
     ]);
@@ -137,21 +137,21 @@ it('has the parent, children, isRecurring, recurrenceRule, and generateInstances
 
 it('creates a one-off meeting without recurrence data', function () {
     $teacher = User::create([
-        'name'     => 'OneOff Teacher',
-        'email'    => 'oneoff@test.com',
+        'name' => 'OneOff Teacher',
+        'email' => 'oneoff@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'OneOff Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'OneOff Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'ONEOFF01',
     ]);
 
     $meeting = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'One-off Meeting',
+        'class_id' => $class->id,
+        'title' => 'One-off Meeting',
         'scheduled_at' => now()->addHour(),
     ]);
 
@@ -167,28 +167,28 @@ it('creates a one-off meeting without recurrence data', function () {
 
 it('creates a recurring series of N instances via generateInstances', function () {
     $teacher = User::create([
-        'name'     => 'Series Teacher',
-        'email'    => 'series@test.com',
+        'name' => 'Series Teacher',
+        'email' => 'series@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'Series Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'Series Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'SERIES01',
     ]);
 
     $parent = Meeting::create([
-        'class_id'         => $class->id,
-        'title'            => 'Weekly Tutoring',
-        'scheduled_at'     => now()->parse('2026-08-03 15:00:00'),
+        'class_id' => $class->id,
+        'title' => 'Weekly Tutoring',
+        'scheduled_at' => now()->parse('2026-08-03 15:00:00'),
         'duration_minutes' => 90,
-        'meeting_url'      => 'https://meet.google.com/abc-defg-hij',
-        'agenda'           => 'Chapter review',
-        'recurrence_rule'  => json_encode([
+        'meeting_url' => 'https://meet.google.com/abc-defg-hij',
+        'agenda' => 'Chapter review',
+        'recurrence_rule' => json_encode([
             'frequency' => 'weekly',
-            'interval'  => 1,
+            'interval' => 1,
         ]),
     ]);
 
@@ -218,53 +218,53 @@ it('propagates edit changes to future children but not past', function () {
     Carbon::setTestNow('2026-08-03 12:00:00');
 
     $teacher = User::create([
-        'name'     => 'EditProp Teacher',
-        'email'    => 'editprop@test.com',
+        'name' => 'EditProp Teacher',
+        'email' => 'editprop@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'EditProp Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'EditProp Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'EDTPRP01',
     ]);
 
     $parent = Meeting::create([
-        'class_id'         => $class->id,
-        'title'            => 'Original Title',
-        'scheduled_at'     => now()->parse('2026-08-01 10:00:00'),
+        'class_id' => $class->id,
+        'title' => 'Original Title',
+        'scheduled_at' => now()->parse('2026-08-01 10:00:00'),
         'duration_minutes' => 60,
-        'recurrence_rule'  => json_encode(['frequency' => 'weekly', 'interval' => 1]),
+        'recurrence_rule' => json_encode(['frequency' => 'weekly', 'interval' => 1]),
     ]);
 
     // Past child (yesterday)
     $pastChild = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Original Title',
+        'class_id' => $class->id,
+        'title' => 'Original Title',
         'scheduled_at' => now()->subDay(),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     // Future children (tomorrow and day after)
     $futureChild1 = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Original Title',
+        'class_id' => $class->id,
+        'title' => 'Original Title',
         'scheduled_at' => now()->addDay(),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     $futureChild2 = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Original Title',
+        'class_id' => $class->id,
+        'title' => 'Original Title',
         'scheduled_at' => now()->addDays(2),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     // Unrelated meeting (should not be affected)
     $unrelated = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Unrelated',
+        'class_id' => $class->id,
+        'title' => 'Unrelated',
         'scheduled_at' => now()->addDay(),
     ]);
 
@@ -274,10 +274,10 @@ it('propagates edit changes to future children but not past', function () {
     $parent->children()
         ->where('scheduled_at', '>=', now())
         ->update([
-            'title'            => $parent->title,
-            'agenda'           => $parent->agenda,
+            'title' => $parent->title,
+            'agenda' => $parent->agenda,
             'duration_minutes' => $parent->duration_minutes,
-            'meeting_url'      => $parent->meeting_url,
+            'meeting_url' => $parent->meeting_url,
         ]);
 
     // Assertions
@@ -295,36 +295,36 @@ it('propagates edit changes to future children but not past', function () {
 
 it('deletes all children when parent is deleted via cascade', function () {
     $teacher = User::create([
-        'name'     => 'CascadeRec Teacher',
-        'email'    => 'cascaderec@test.com',
+        'name' => 'CascadeRec Teacher',
+        'email' => 'cascaderec@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'CascadeRec Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'CascadeRec Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'CASREC01',
     ]);
 
     $parent = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Parent',
+        'class_id' => $class->id,
+        'title' => 'Parent',
         'scheduled_at' => now()->addHour(),
     ]);
 
     $child1 = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Child 1',
+        'class_id' => $class->id,
+        'title' => 'Child 1',
         'scheduled_at' => now()->addWeek(),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     $child2 = Meeting::create([
-        'class_id'     => $class->id,
-        'title'        => 'Child 2',
+        'class_id' => $class->id,
+        'title' => 'Child 2',
         'scheduled_at' => now()->addWeeks(2),
-        'parent_id'    => $parent->id,
+        'parent_id' => $parent->id,
     ]);
 
     expect(Meeting::count())->toBe(3);
@@ -343,30 +343,30 @@ it('deletes all children when parent is deleted via cascade', function () {
 
 it('correctly stores and retrieves the recurrence_rule JSON structure', function () {
     $teacher = User::create([
-        'name'     => 'JsonRound Teacher',
-        'email'    => 'jsonround@test.com',
+        'name' => 'JsonRound Teacher',
+        'email' => 'jsonround@test.com',
         'password' => 'password',
-        'role'     => 'TEACHER',
+        'role' => 'TEACHER',
     ]);
 
     $class = SchoolClass::create([
-        'title'           => 'JsonRound Class',
-        'teacher_id'      => $teacher->id,
+        'title' => 'JsonRound Class',
+        'teacher_id' => $teacher->id,
         'invitation_code' => 'JSONRND01',
     ]);
 
     $rule = [
-        'frequency'    => 'biweekly',
-        'interval'     => 2,
-        'count'        => 8,
-        'until'        => null,
+        'frequency' => 'biweekly',
+        'interval' => 2,
+        'count' => 8,
+        'until' => null,
         'days_of_week' => null,
     ];
 
     $meeting = Meeting::create([
-        'class_id'        => $class->id,
-        'title'           => 'JSON Round-trip',
-        'scheduled_at'    => now()->addHour(),
+        'class_id' => $class->id,
+        'title' => 'JSON Round-trip',
+        'scheduled_at' => now()->addHour(),
         'recurrence_rule' => json_encode($rule),
     ]);
 
