@@ -657,6 +657,16 @@ php artisan test --parallel  # Faster (8 processes)
 
 Pest v4 uses the existing `phpunit.xml` config. Tests run against SQLite `:memory:` by default (see `<env name="DB_CONNECTION" value="sqlite"/>` in `phpunit.xml`). No MariaDB instance is needed for tests.
 
+### Real-database concurrency tests
+
+The isolated concurrency suite runs against MariaDB 10.11/InnoDB through Laravel's `mysql` connection:
+
+```bash
+vendor/bin/pest --configuration=phpunit.concurrency.xml
+```
+
+Create `online_exam_submission_concurrency` first and provide `DB_HOST`, `DB_PORT`, `DB_USERNAME`, and `DB_PASSWORD` as environment variables. The database is disposable: `DatabaseMigrations` creates and removes its tables, so never point this command at the normal `online_exam_submission` database. The database user also needs the global `PROCESS` privilege to read `INNODB_LOCK_WAITS` and `INNODB_TRX`. CI runs the same command against an ephemeral MariaDB service. Do not run this suite in parallel against one database.
+
 ### Test Coverage
 
 | File | Count | Covers |

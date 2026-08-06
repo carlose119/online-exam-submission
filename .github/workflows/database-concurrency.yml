@@ -1,0 +1,37 @@
+name: Database concurrency
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  mariadb-concurrency:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: concurrency
+          MARIADB_DATABASE: online_exam_submission_concurrency
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: concurrency
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pest --configuration=phpunit.concurrency.xml
