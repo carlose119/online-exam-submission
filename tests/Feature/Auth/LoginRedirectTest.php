@@ -43,12 +43,7 @@ test('login with redirect param returns user to the join page', function () {
 // ---------------------------------------------------------------------------
 
 test('login without redirect param goes to dashboard', function () {
-    $student = User::create([
-        'name' => 'NoRedirect Student',
-        'email' => 'noredirect-student@test.com',
-        'password' => 'password',
-        'role' => 'STUDENT',
-    ]);
+    $student = User::factory()->create(['role' => 'STUDENT']);
 
     $response = $this->post('/login', [
         'email' => $student->email,
@@ -59,17 +54,24 @@ test('login without redirect param goes to dashboard', function () {
     $this->assertAuthenticated();
 });
 
+test('unverified login without redirect param goes to verification notice', function () {
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+
+    $response = $this->post('/login', [
+        'email' => $student->email,
+        'password' => 'password',
+    ]);
+
+    $response->assertRedirect(route('verification.notice', absolute: false));
+    $this->assertAuthenticatedAs($student);
+});
+
 // ---------------------------------------------------------------------------
 // External redirect URLs are rejected (open-redirect protection)
 // ---------------------------------------------------------------------------
 
 test('external redirect url is rejected and falls back to dashboard', function () {
-    $student = User::create([
-        'name' => 'External Student',
-        'email' => 'external-student@test.com',
-        'password' => 'password',
-        'role' => 'STUDENT',
-    ]);
+    $student = User::factory()->create(['role' => 'STUDENT']);
 
     $response = $this->post('/login', [
         'email' => $student->email,
