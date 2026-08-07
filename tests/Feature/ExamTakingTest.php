@@ -72,7 +72,7 @@ function seedExamTaking(): array
         $questions[] = $q;
     }
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'ET Student',
         'email' => 'et-student@test.com',
         'password' => 'password',
@@ -116,7 +116,7 @@ it('denies teacher from starting an exam', function () {
 it('denies student who is not subscribed to the class', function () {
     $data = seedExamTaking();
 
-    $unsubscribed = User::create([
+    $unsubscribed = User::factory()->create([
         'name' => 'Unsubscribed',
         'email' => 'unsub@test.com',
         'password' => 'password',
@@ -181,7 +181,7 @@ it('creates attempt and redirects to take when student clicks start', function (
 it('denies student from viewing another students attempt', function () {
     $data = seedExamTaking();
 
-    $other = User::create([
+    $other = User::factory()->create([
         'name' => 'Other Student',
         'email' => 'other@test.com',
         'password' => 'password',
@@ -496,7 +496,7 @@ it('result page redirects to take when attempt is ungraded', function () {
 it('denies answer for attempt belonging to another student', function () {
     $data = seedExamTaking();
 
-    $other = User::create([
+    $other = User::factory()->create([
         'name' => 'Other Student 2',
         'email' => 'other2@test.com',
         'password' => 'password',
@@ -531,7 +531,7 @@ it('denies answer for attempt belonging to another student', function () {
 it('denies submit for attempt belonging to another student', function () {
     $data = seedExamTaking();
 
-    $other = User::create([
+    $other = User::factory()->create([
         'name' => 'Other Student 3',
         'email' => 'other3@test.com',
         'password' => 'password',
@@ -793,3 +793,33 @@ it('allows an owner to view a completed result after subscription is revoked', f
         ->assertOk()
         ->assertSee('ET Exam');
 });
+
+it('requires verification across every routed exam entry point', function (string $routeName, string $method) {
+    $data = seedExamTaking();
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+    $student->subscribedClasses()->attach($data['class']->id);
+    $attempt = StudentAttempt::create([
+        'student_id' => $student->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+        'finished_at' => $routeName === 'student.exam.result' ? now() : null,
+        'score_obtained' => $routeName === 'student.exam.result' ? 0 : null,
+    ]);
+    $parameters = match ($routeName) {
+        'student.exam.start' => $data['exam'],
+        'student.exam.answer' => ['attempt' => $attempt, 'question' => $data['questions'][0]],
+        default => $attempt,
+    };
+
+    $response = $this->actingAs($student)->{$method}(route($routeName, $parameters));
+
+    $response->assertRedirect(route('verification.notice'));
+    expect($attempt->answers()->count())->toBe(0)
+        ->and($attempt->fresh()->finished_at?->toISOString())->toBe($attempt->finished_at?->toISOString());
+})->with([
+    'start' => ['student.exam.start', 'get'],
+    'take' => ['student.exam.take', 'get'],
+    'answer persistence' => ['student.exam.answer', 'post'],
+    'submit' => ['student.exam.submit', 'post'],
+    'result' => ['student.exam.result', 'get'],
+]);

@@ -56,7 +56,7 @@ function seedTimerTest(int $durationMinutes = 30): array
         'is_correct' => false,
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Timer Student',
         'email' => 'timer-student@test.com',
         'password' => 'password',

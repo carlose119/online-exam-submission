@@ -30,8 +30,8 @@ Route::post('/clase/unirse/{invitation_code}/join', [JoinClassController::class,
 // Student dashboard (Livewire component, auth + role:STUDENT only)
 Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware(['auth', 'role:STUDENT', 'verified']);
 
-// Student exam taking routes (auth + role:STUDENT only)
-Route::middleware(['auth', 'role:STUDENT'])->group(function () {
+// Verified student exam and meeting calendar routes.
+Route::middleware(['auth', 'role:STUDENT', 'verified'])->group(function () {
     Route::get('/examenes/{exam}/intentar', ExamStart::class)->name('student.exam.start');
     Route::get('/examenes/{attempt}/tomar', ExamTake::class)->name('student.exam.take')->middleware('checkTimer');
     Route::post('/examenes/{attempt}/responder/{question}', [ExamController::class, 'answer'])->name('student.exam.answer')->middleware('checkTimer');
