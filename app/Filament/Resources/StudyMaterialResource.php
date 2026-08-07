@@ -72,7 +72,7 @@ class StudyMaterialResource extends Resource
                     ->label('File')
                     ->visible(fn (Get $get): bool => static::isType($get, StudyMaterialType::File))
                     ->disk(config('study-materials.disk'))
-                    ->directory(fn (Get $get): string => trim(config('study-materials.prefix'), '/').'/'.$get('class_id'))
+                    ->directory(fn (Get $get): string => trim(config('study-materials.path_prefix'), '/').'/'.$get('class_id'))
                     ->acceptedFileTypes([
                         'application/pdf',
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

@@ -142,7 +142,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 - Each file is limited to 50 MB by default. Web server and PHP upload limits must be at least as large.
 - All distinct active `FILE` paths across classes owned by one teacher count toward a 5 GB aggregate quota by default. `LINK` and `MEETING` URLs do not consume file quota.
 - The material-list heading shows used, limit, and remaining storage. An upload that would exceed the quota is rejected before permanent storage with the current usage summary.
-- Automatic deleted-file cleanup and orphan reconciliation are not implemented yet; do not describe database-record deletion as physical-file cleanup.
+- Replacing, switching, or deleting a `FILE` material removes its obsolete managed file after the database commit when no active material still references it. Historical and class-cascade orphans are not reconciled automatically yet.
 
 ## Verification
 
