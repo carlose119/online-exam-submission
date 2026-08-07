@@ -129,7 +129,13 @@ Restrict application-log and failed-job access to operational staff, apply reten
 
 Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before seeding to override these values. Never use the development defaults in a deployed environment.
 
-Students create their own accounts at `/register`. Teacher accounts are managed by an administrator in Filament.
+Students create their own accounts at `/register` and verify them through the inbox link sent during registration. Teacher accounts are managed by an administrator in Filament and do not receive the student registration notification.
+
+### Student email verification
+
+Registration sends one verification email synchronously, authenticates the new `STUDENT`, and opens `/verify-email`. Unverified students can resend the link from that notice; verified students are redirected to the dashboard. Capability routes are not yet protected by verification middleware, so this delivery slice does not claim dashboard, class, exam, result, profile, or calendar enforcement.
+
+With local `MAIL_MAILER=log`, Laravel writes the message and signed link to the application log instead of delivering to an inbox. Use the notice resend action after changing mail configuration. Verification remains synchronous so signed URLs and hashes are never serialized into a failed queue job; production requests therefore surface SMTP failure directly and should use the operational controls above.
 
 ## System Usage
 
@@ -156,7 +162,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 ### Student
 
-1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account.
+1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; unverified default logins open the verification notice.
 2. Open a teacher's invitation URL and join while authenticated. Joining is idempotent, and the class then appears on `/dashboard`.
 3. Use the dashboard to review joined classes and their materials, exams, and meetings. `/profile` displays the student's read-only account and enrollment information.
 4. Start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
@@ -191,7 +197,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **302 tests and 981 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **312 tests and 1,023 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 

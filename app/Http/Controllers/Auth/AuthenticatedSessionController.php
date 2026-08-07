@@ -40,6 +40,10 @@ class AuthenticatedSessionController extends Controller
             }
         }
 
+        if ($request->user()->role === 'STUDENT' && ! $request->user()->hasVerifiedEmail()) {
+            return redirect()->route('verification.notice');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
