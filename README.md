@@ -10,7 +10,7 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
 | Exams | Teachers build single- and multiple-choice exams; students receive one attempt with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
-| Student experience | Students register, join multiple classes, use a dashboard, view a read-only profile, take exams, and review scores. |
+| Student experience | Students register, join multiple classes, use a dashboard, update their profile name, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
@@ -172,7 +172,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
-3. Use the dashboard to review joined classes and their materials, exams, and meetings. `/profile` displays the student's read-only account and enrollment information.
+3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, and review read-only account and enrollment information. The name is required, must be text, and cannot exceed 255 characters.
 4. After verifying the account, start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
 5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
@@ -205,7 +205,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **312 tests and 1,023 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **341 tests and 1,155 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
