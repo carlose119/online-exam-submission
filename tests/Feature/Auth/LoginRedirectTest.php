@@ -21,7 +21,7 @@ test('login with redirect param returns user to the join page', function () {
         'invitation_code' => 'REDIRECT1',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Redirect Student',
         'email' => 'redirect-student@test.com',
         'password' => 'password',
@@ -88,7 +88,7 @@ test('external redirect url is rejected and falls back to dashboard', function (
 // ---------------------------------------------------------------------------
 
 test('relative redirect url is accepted', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Relative Student',
         'email' => 'relative-student@test.com',
         'password' => 'password',

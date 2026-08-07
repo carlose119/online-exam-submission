@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\InvitationReturnUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,61 +15,37 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): View
+    public function create(InvitationReturnUrl $invitationReturnUrl): View
     {
         return view('auth.login', [
-            'redirect' => request('redirect'),
+            'redirect' => $invitationReturnUrl->resolve(request('redirect'), request()->getHost()),
         ]);
     }
 
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request, InvitationReturnUrl $invitationReturnUrl): RedirectResponse
     {
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        $redirect = $request->input('redirect');
-
-        if ($redirect) {
-            $safeUrl = $this->safeRedirect($redirect, $request->getHost());
-
-            if ($safeUrl !== null) {
-                return redirect($safeUrl);
-            }
-        }
+        $redirect = $invitationReturnUrl->resolve($request->input('redirect'), $request->getHost());
 
         if ($request->user()->role === 'STUDENT' && ! $request->user()->hasVerifiedEmail()) {
+            if ($redirect !== null) {
+                $request->session()->put('url.intended', $redirect);
+            }
+
             return redirect()->route('verification.notice');
         }
 
+        if ($redirect !== null) {
+            return redirect($redirect);
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
-    }
-
-    /**
-     * Validate and return a safe redirect URL.
-     *
-     * Relative URLs (starting with /) are always safe.
-     * Absolute URLs are only safe if they match the application host.
-     * Returns the safe URL or null if the URL is unsafe.
-     */
-    private function safeRedirect(string $url, string $appHost): ?string
-    {
-        // Relative URL — always safe
-        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
-            return $url;
-        }
-
-        // Absolute URL — validate same host
-        $parsed = parse_url($url);
-
-        if (($parsed['host'] ?? '') === $appHost) {
-            return $url;
-        }
-
-        return null;
     }
 
     /**

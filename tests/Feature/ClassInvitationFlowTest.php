@@ -122,6 +122,30 @@ it('nonexistent invitation code returns 404', function () {
     $response->assertNotFound();
 });
 
+it('keeps invitation discovery public for every account state', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create([
+        'title' => 'Public Invitation',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => 'PUBLIC01',
+    ]);
+    $accounts = [
+        User::factory()->unverified()->create(['role' => 'STUDENT']),
+        User::factory()->create(['role' => 'STUDENT']),
+        $teacher,
+        User::factory()->create(['role' => 'ADMIN']),
+    ];
+
+    $this->get(route('class.join.show', $class->invitation_code))->assertOk();
+
+    foreach ($accounts as $account) {
+        $this->actingAs($account)
+            ->get(route('class.join.show', $class->invitation_code))
+            ->assertOk()
+            ->assertSee('Public Invitation');
+    }
+});
+
 // ---------------------------------------------------------------------------
 // (e) Materials section renders after TBD block when class has materials
 // ---------------------------------------------------------------------------

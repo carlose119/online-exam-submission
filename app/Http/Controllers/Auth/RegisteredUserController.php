@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\InvitationReturnUrl;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,9 +18,11 @@ class RegisteredUserController extends Controller
     /**
      * Display the registration view.
      */
-    public function create(): View
+    public function create(InvitationReturnUrl $invitationReturnUrl): View
     {
-        return view('auth.register');
+        return view('auth.register', [
+            'redirect' => $invitationReturnUrl->resolve(request('redirect'), request()->getHost()),
+        ]);
     }
 
     /**
@@ -32,7 +35,7 @@ class RegisteredUserController extends Controller
      *
      * @throws ValidationException
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, InvitationReturnUrl $invitationReturnUrl): RedirectResponse
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -50,6 +53,12 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+
+        $redirect = $invitationReturnUrl->resolve($request->input('redirect'), $request->getHost());
+
+        if ($redirect !== null) {
+            $request->session()->put('url.intended', $redirect);
+        }
 
         return redirect(route('verification.notice', absolute: false));
     }

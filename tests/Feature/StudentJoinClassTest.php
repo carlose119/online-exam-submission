@@ -21,7 +21,7 @@ it('creates class_user pivot row and redirects to dashboard on join', function (
         'invitation_code' => 'JOIN1234',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Join Student',
         'email' => 'join-student@test.com',
         'password' => 'password',
@@ -58,7 +58,7 @@ it('duplicate join is idempotent', function () {
         'invitation_code' => 'DUP12345',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Dup Student',
         'email' => 'dup-student@test.com',
         'password' => 'password',
@@ -84,7 +84,7 @@ it('duplicate join is idempotent', function () {
 // ---------------------------------------------------------------------------
 
 it('join with nonexistent code returns 404', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'NotFound Student',
         'email' => 'nf-student@test.com',
         'password' => 'password',
@@ -102,5 +102,25 @@ it('join with nonexistent code returns 404', function () {
 
 it('unauthenticated join redirects to login', function () {
     $this->post(route('class.join.action', 'ANYCODE99'))
-        ->assertRedirect(route('login'));
+        ->assertRedirect(route('login', ['redirect' => route('class.join.show', 'ANYCODE99', absolute: false)]))
+        ->assertSessionHas('url.intended', route('class.join.show', 'ANYCODE99', absolute: false));
 });
+
+it('unverified students return to invitation discovery after verification', function () {
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+
+    $this->actingAs($student)
+        ->post(route('class.join.action', 'VERIFY01'))
+        ->assertRedirect(route('verification.notice'))
+        ->assertSessionHas('url.intended', route('class.join.show', 'VERIFY01', absolute: false));
+
+    $this->assertDatabaseCount('class_user', 0);
+});
+
+it('denies non-student join mutations', function (string $role) {
+    $user = User::factory()->create(['role' => $role]);
+
+    $this->actingAs($user)
+        ->post(route('class.join.action', 'ANYCODE99'))
+        ->assertForbidden();
+})->with(['teacher' => 'TEACHER', 'admin' => 'ADMIN']);

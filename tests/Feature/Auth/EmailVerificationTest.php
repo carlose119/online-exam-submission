@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -148,4 +149,57 @@ test('verification link for another authenticated user is rejected', function ()
 
     expect($intendedUser->fresh()->hasVerifiedEmail())->toBeFalse()
         ->and($authenticatedUser->fresh()->hasVerifiedEmail())->toBeFalse();
+});
+
+test('invitation registration verification returns to discovery before explicit join', function () {
+    Notification::fake();
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create([
+        'title' => 'Verified Flow Class',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => 'FLOW1234',
+    ]);
+    $invitationUrl = route('class.join.show', $class->invitation_code, absolute: false);
+
+    $this->get($invitationUrl)
+        ->assertOk()
+        ->assertSee(route('login', ['redirect' => route('class.join.show', $class->invitation_code)]));
+
+    $this->get(route('login', ['redirect' => $invitationUrl]))
+        ->assertOk()
+        ->assertSee(route('register', ['redirect' => $invitationUrl]));
+
+    $this->get(route('register', ['redirect' => $invitationUrl]))
+        ->assertOk()
+        ->assertSee('name="redirect" value="'.$invitationUrl.'"', false);
+
+    $this->post(route('register'), [
+        'name' => 'Flow Student',
+        'email' => 'flow-student@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+        'redirect' => $invitationUrl,
+    ])->assertRedirect(route('verification.notice', absolute: false))
+        ->assertSessionHas('url.intended', $invitationUrl);
+
+    $student = User::where('email', 'flow-student@example.com')->sole();
+    $this->get(route('verification.notice'))->assertOk();
+    $this->assertDatabaseCount('class_user', 0);
+
+    $verificationUrl = URL::temporarySignedRoute(
+        'verification.verify',
+        now()->addMinutes(60),
+        ['id' => $student->id, 'hash' => sha1($student->email)]
+    );
+
+    $this->get($verificationUrl)->assertRedirect($invitationUrl);
+    $this->get($invitationUrl)->assertOk()->assertSee('Unirse a clase');
+    $this->assertDatabaseCount('class_user', 0);
+
+    $this->post(route('class.join.action', $class->invitation_code))
+        ->assertRedirect(route('dashboard'));
+    $this->assertDatabaseHas('class_user', [
+        'class_id' => $class->id,
+        'user_id' => $student->id,
+    ]);
 });

@@ -24,11 +24,11 @@ require __DIR__.'/auth.php';
 // Public class join page (anyone can view)
 Route::get('/clase/unirse/{invitation_code}', [JoinClassController::class, 'show'])->name('class.join.show');
 
-// Authenticated join action (creates class_user pivot)
-Route::post('/clase/unirse/{invitation_code}/join', [JoinClassController::class, 'join'])->name('class.join.action')->middleware('auth');
+// Explicit join action; the controller preserves the invitation GET across auth and verification.
+Route::post('/clase/unirse/{invitation_code}/join', [JoinClassController::class, 'join'])->name('class.join.action');
 
 // Student dashboard (Livewire component, auth + role:STUDENT only)
-Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware(['auth', 'role:STUDENT']);
+Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware(['auth', 'role:STUDENT', 'verified']);
 
 // Student exam taking routes (auth + role:STUDENT only)
 Route::middleware(['auth', 'role:STUDENT'])->group(function () {
@@ -45,7 +45,7 @@ Route::middleware(['auth', 'role:STUDENT'])->group(function () {
 // Student profile (read-only, replaces Breeze profile routes)
 Route::get('/profile', StudentProfile::class)
     ->name('profile.show')
-    ->middleware(['auth', 'role:STUDENT']);
+    ->middleware(['auth', 'role:STUDENT', 'verified']);
 
 // Report download route (auth + role:admin,teacher only)
 Route::get('/admin/reports/download/{filename}', [ReportDownloadController::class, 'download'])

@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 // ---------------------------------------------------------------------------
 
 it('shows the profile page for an authenticated student', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Student Profile',
         'email' => 'student-profile@test.com',
         'password' => 'password',
@@ -72,7 +72,7 @@ it('redirects guests to login', function () {
 // ---------------------------------------------------------------------------
 
 it('shows user info: name, email, and role badge', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'María García',
         'email' => 'maria@example.com',
         'password' => 'password',
@@ -150,7 +150,7 @@ it('shows subscribed classes with counts and ordering (DESC by joined_at)', func
         'scheduled_at' => now()->addDay(),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Class Student',
         'email' => 'class-student@test.com',
         'password' => 'password',
@@ -193,7 +193,7 @@ it('shows subscribed classes with counts and ordering (DESC by joined_at)', func
 // ---------------------------------------------------------------------------
 
 it('shows empty state when no subscribed classes', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Solo Student',
         'email' => 'solo@test.com',
         'password' => 'password',
@@ -211,7 +211,7 @@ it('shows empty state when no subscribed classes', function () {
 // ---------------------------------------------------------------------------
 
 it('does not show deferred features (exam history, meeting history, password form, unjoin button, editable fields)', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Deferred Student',
         'email' => 'deferred@test.com',
         'password' => 'password',
@@ -245,7 +245,7 @@ it('does not show deferred features (exam history, meeting history, password for
 // ---------------------------------------------------------------------------
 
 it('shows the dashboard Mi perfil link', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Link Student',
         'email' => 'link-student@test.com',
         'password' => 'password',
@@ -256,4 +256,12 @@ it('shows the dashboard Mi perfil link', function () {
         ->get(route('dashboard'))
         ->assertStatus(200)
         ->assertSee('Mi perfil');
+});
+
+it('redirects unverified students to the verification notice', function () {
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+
+    $this->actingAs($student)
+        ->get(route('profile.show'))
+        ->assertRedirect(route('verification.notice'));
 });

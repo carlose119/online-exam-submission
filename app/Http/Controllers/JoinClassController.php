@@ -40,6 +40,22 @@ class JoinClassController extends Controller
      */
     public function join(Request $request, string $invitationCode): RedirectResponse
     {
+        $invitationUrl = route('class.join.show', $invitationCode, absolute: false);
+
+        if (! $request->user()) {
+            $request->session()->put('url.intended', $invitationUrl);
+
+            return redirect()->route('login', ['redirect' => $invitationUrl]);
+        }
+
+        abort_unless($request->user()->role === 'STUDENT', 403);
+
+        if (! $request->user()->hasVerifiedEmail()) {
+            $request->session()->put('url.intended', $invitationUrl);
+
+            return redirect()->route('verification.notice');
+        }
+
         $class = SchoolClass::where('invitation_code', $invitationCode)->firstOrFail();
 
         ClassUser::firstOrCreate([
