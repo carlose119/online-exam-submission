@@ -3,11 +3,14 @@
 namespace App\Filament\Resources\MeetingResource\Pages;
 
 use App\Filament\Resources\MeetingResource;
+use App\Services\MeetingScheduledNotificationDispatcher;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateMeeting extends CreateRecord
 {
     protected static string $resource = MeetingResource::class;
+
+    protected ?bool $hasDatabaseTransactions = true;
 
     /**
      * Transform the virtual recurrence fields into the recurrence_rule JSON
@@ -47,5 +50,7 @@ class CreateMeeting extends CreateRecord
         if ($isRecurring && $count > 1) {
             $this->record->generateInstances($count);
         }
+
+        app(MeetingScheduledNotificationDispatcher::class)->dispatch($this->record, $isRecurring ? $count : 1);
     }
 }
