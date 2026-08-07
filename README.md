@@ -72,7 +72,7 @@ Install these project-supported tools before resolving dependencies:
    MAIL_MAILER=log
    ```
 
-   Laravel's `mysql` connection supports both MariaDB and MySQL. Alternatively, use `sqlite` with an existing writable `DB_DATABASE` file. Important optional controls include `REPORTS_SYNC_THRESHOLD`, `STUDY_MATERIALS_TEACHER_QUOTA_BYTES`, and `STUDY_MATERIALS_MAX_UPLOAD_KILOBYTES`. Configure a real `MAIL_MAILER` and its provider-specific variables when password-reset or application email must leave the application.
+   Laravel's `mysql` connection supports both MariaDB and MySQL. Alternatively, use `sqlite` with an existing writable `DB_DATABASE` file. Important optional controls include `REPORTS_SYNC_THRESHOLD`, `STUDY_MATERIALS_TEACHER_QUOTA_BYTES`, and `STUDY_MATERIALS_MAX_UPLOAD_KILOBYTES`. `MAIL_MAILER=log` is an explicit local-only, non-delivery choice; never treat its log output as external delivery.
 
 4. Create the schema and development administrator, expose public uploads, and build frontend assets:
 
@@ -91,6 +91,32 @@ Install these project-supported tools before resolving dependencies:
    This Composer script runs the Laravel server, a database queue listener, Pail logs, and the Vite development server together. The application is normally available at `http://localhost:8000`; the Filament panel is at `http://localhost:8000/admin`.
 
 For a production-like local run, use `npm run build` and serve Laravel without the Vite development server. Run `php artisan queue:work` as a separately supervised process when `QUEUE_CONNECTION` is asynchronous; otherwise larger report exports remain pending. Deployment must provide a writable `storage` tree, the public storage link, migrated database, built `public/build` assets, and correctly configured `APP_URL`.
+
+### Production mail operations
+
+Use generic SMTP credentials supplied by the deployment secret store. Production must use an HTTPS public application URL and a from address on a domain the organization controls:
+
+```dotenv
+APP_URL=https://exams.example.org
+MAIL_MAILER=failover
+MAIL_FAILOVER_MAILERS=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.example.net
+MAIL_PORT=587
+MAIL_USERNAME=replace-in-secret-store
+MAIL_PASSWORD=replace-in-secret-store
+MAIL_EHLO_DOMAIN=exams.example.org
+MAIL_FROM_ADDRESS=no-reply@example.org
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+Port `587` with `MAIL_SCHEME=smtp` is the usual submission setup when the server advertises STARTTLS. Use `MAIL_SCHEME=smtps` with port `465` only when the SMTP service requires implicit TLS. Follow the SMTP operator's requirements; do not disable certificate validation. An optional independent SMTP endpoint can use `MAIL_BACKUP_*` and `MAIL_FAILOVER_MAILERS=smtp,smtp_backup`. The failover list rejects `log`, `array`, unknown, or empty entries so an apparent success cannot silently become local logging.
+
+Before production delivery, publish and validate SPF, DKIM, and DMARC for the from domain outside this application. After any mail configuration change, run `php artisan config:cache` and restart every queue worker with `php artisan queue:restart` so long-lived processes load the new values.
+
+Smoke-test with a dedicated non-sensitive message and test mailbox. Confirm only the metadata events `mail.sending` and `mail.sent` appear, with configured mailer and recipient count; never print a recipient, subject, body, signed URL, verification hash, reset token, credential, or serialized notification payload. `mail.sent` means the configured transport accepted the message, not that an inbox received it. Confirm inbox placement separately without exposing message content.
+
+Restrict application-log and failed-job access to operational staff, apply retention controls, and treat both stores as sensitive even though mail operations add metadata only. Investigate `mail.notification_failed`, `mail.job_failed`, and `notification.job_failed` by exception class and queue metadata; inspect message content or serialized job payloads only through an approved incident process.
 
 ### Seeded Administrator
 
@@ -165,7 +191,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **264 tests and 849 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **302 tests and 981 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
@@ -249,7 +275,7 @@ The application uses one `User` model with role-based boundaries. Students use t
 | Public material URL returns 404 | Run `php artisan storage:link`, confirm `public/storage` targets `storage/app/public`, and verify the referenced file exists. Use `php artisan materials:reconcile` to inspect orphan counts; reconciliation does not restore missing active files. |
 | Database connection, missing-table, or migration error | Recheck `DB_CONNECTION` and `DB_*`, create the selected database/file, then run `php artisan migrate:status` and `php artisan migrate --seed`. Never troubleshoot against production data. |
 | A large PDF/Excel report stays queued | Start `php artisan queue:work`, verify `QUEUE_CONNECTION` and the `jobs` migration, and inspect failed jobs/logs. Reports at or above `REPORTS_SYNC_THRESHOLD` attempts are asynchronous. |
-| Password-reset or application email is not delivered | `MAIL_MAILER=log` writes mail to application logs and does not deliver it. Configure a supported delivery mailer and provider variables for non-local environments. |
+| Password-reset or application email is not delivered | `MAIL_MAILER=log` is local non-delivery only. Configure SMTP, rebuild the config cache, restart queue workers, and distinguish transport acceptance from inbox placement. Never expose tokens or message content while troubleshooting. |
 | A route or Filament resource returns 403 or is hidden | Use the intended role and ownership boundary: students use web routes, administrators/teachers use `/admin`, teachers only manage owned class data, and students must join a class before protected exam/calendar access. Do not bypass authorization by changing role values manually. |
 
 ## SDD Artifacts
