@@ -1,5 +1,14 @@
 <?php
 
+$failoverMailers = array_values(array_unique(array_filter(
+    array_map('trim', explode(',', (string) env('MAIL_FAILOVER_MAILERS', 'smtp'))),
+)));
+$deliveryMailers = ['smtp', 'smtp_backup', 'sendmail'];
+
+if ($failoverMailers === [] || array_diff($failoverMailers, $deliveryMailers) !== []) {
+    throw new InvalidArgumentException('MAIL_FAILOVER_MAILERS must contain only smtp, smtp_backup, or sendmail.');
+}
+
 return [
 
     /*
@@ -49,6 +58,17 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        'smtp_backup' => [
+            'transport' => 'smtp',
+            'scheme' => env('MAIL_BACKUP_SCHEME'),
+            'host' => env('MAIL_BACKUP_HOST', '127.0.0.1'),
+            'port' => env('MAIL_BACKUP_PORT', 2525),
+            'username' => env('MAIL_BACKUP_USERNAME'),
+            'password' => env('MAIL_BACKUP_PASSWORD'),
+            'timeout' => null,
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],
@@ -81,10 +101,7 @@ return [
 
         'failover' => [
             'transport' => 'failover',
-            'mailers' => [
-                'smtp',
-                'log',
-            ],
+            'mailers' => $failoverMailers,
             'retry_after' => 60,
         ],
 
