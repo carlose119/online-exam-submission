@@ -89,7 +89,7 @@ it('denies unsubscribed student', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    $unsubscribed = User::create([
+    $unsubscribed = User::factory()->create([
         'name' => 'Unsub Student',
         'email' => 'unsub-stu@test.com',
         'password' => 'password',
@@ -99,6 +99,18 @@ it('denies unsubscribed student', function () {
     $this->actingAs($unsubscribed)
         ->get(route('meetings.ics', $meeting))
         ->assertForbidden();
+});
+
+it('requires a verified subscribed student', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Verify Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'VERIFY01']);
+    $meeting = Meeting::create(['class_id' => $class->id, 'title' => 'Verify Meeting', 'scheduled_at' => now()->addDay()]);
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+    $student->subscribedClasses()->attach($class->id);
+
+    $this->actingAs($student)
+        ->get(route('meetings.ics', $meeting))
+        ->assertRedirect(route('verification.notice'));
 });
 
 // ---------------------------------------------------------------------------
@@ -130,7 +142,7 @@ it('returns valid ics for subscribed student', function () {
         'agenda' => 'Review chapters 1-3',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Sub Student',
         'email' => 'sub-stu@test.com',
         'password' => 'password',
@@ -192,7 +204,7 @@ it('defaults null duration to 60 minutes', function () {
         'agenda' => 'Some agenda',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'NullDur Student',
         'email' => 'nulldur-stu@test.com',
         'password' => 'password',
@@ -235,7 +247,7 @@ it('handles null agenda and meeting_url', function () {
         'agenda' => null,
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'NullFields Student',
         'email' => 'nullfields-stu@test.com',
         'password' => 'password',
@@ -277,7 +289,7 @@ it('contains no RRULE', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'NoRRule Student',
         'email' => 'norrle-stu@test.com',
         'password' => 'password',

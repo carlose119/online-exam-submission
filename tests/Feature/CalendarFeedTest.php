@@ -42,6 +42,18 @@ it('returns 404 for an unknown feed token', function () {
     $this->get(route('calendar.feed', ['token' => 'missing']))->assertNotFound();
 });
 
+it('denies an unverified owners feed like an unknown token', function () {
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+    $token = $student->generateFeedToken();
+
+    $unknown = $this->get(route('calendar.feed', ['token' => 'missing']));
+    $unverified = $this->get(route('calendar.feed', ['token' => $token]));
+
+    $unknown->assertNotFound();
+    $unverified->assertNotFound();
+    expect($unverified->getContent())->toBe($unknown->getContent());
+});
+
 it('returns an unauthenticated multi-event feed with exact no-cache headers', function () {
     Carbon::setTestNow('2026-08-05 12:00:00');
 

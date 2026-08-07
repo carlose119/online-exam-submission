@@ -133,13 +133,13 @@ Students create their own accounts at `/register` and verify them through the in
 
 ### Student email verification
 
-Registration sends one verification email synchronously, authenticates the new `STUDENT`, and opens `/verify-email`. Unverified students can resend the link from that notice. Public class invitation pages remain available to everyone, but joining a class, opening `/dashboard`, and opening `/profile` require a verified `STUDENT` account. An invitation carried through login or registration returns to that public page after verification; joining still requires a new explicit POST.
+Registration sends one verification email synchronously, authenticates the new `STUDENT`, and opens `/verify-email`. Unverified students can resend the link from that notice. Public class invitation pages remain available to everyone, but joining a class, opening `/dashboard` or `/profile`, taking an exam, viewing a result, and downloading an individual meeting calendar require a verified `STUDENT` account. An invitation carried through login or registration returns to that public page after verification; joining still requires a new explicit POST.
 
 With local `MAIL_MAILER=log`, Laravel writes the message and signed link to the application log instead of delivering to an inbox. Use the notice resend action after changing mail configuration. Verification remains synchronous so signed URLs and hashes are never serialized into a failed queue job; production requests therefore surface SMTP failure directly and should use the operational controls above.
 
 #### Legacy rollout
 
-Existing student rows with a null `email_verified_at` are blocked from class joining, the dashboard, and the profile until they verify. Existing `class_user` enrollments remain intact, and public invitation discovery remains available. Operators should communicate the change and resend verification links when needed; do not backfill verification timestamps without evidence that the address was verified. Exam, result, meeting, individual ICS, and calendar-feed enforcement is intentionally deferred to the next access-control slice.
+Existing student rows with a null `email_verified_at` are blocked from student capabilities until they verify. Existing `class_user` enrollments, attempts, results, and feed tokens remain intact, and public invitation discovery remains available. Aggregate feeds owned by an unverified student return the same denial as an unknown token until verification. Operators should communicate the change and resend verification links when needed; do not backfill verification timestamps or redesign feed tokens.
 
 ## System Usage
 
@@ -169,8 +169,8 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
 3. Use the dashboard to review joined classes and their materials, exams, and meetings. `/profile` displays the student's read-only account and enrollment information.
-4. Start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
-5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. Regenerate the feed token if the URL is exposed.
+4. After verifying the account, start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
+5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
 ### Material uploads
 

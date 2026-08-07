@@ -14,7 +14,10 @@ class CalendarFeedController extends Controller
      */
     public function feed(string $token): Response
     {
-        $user = User::query()->where('feed_token', $token)->firstOrFail();
+        $user = User::query()
+            ->whereNotNull('email_verified_at')
+            ->where('feed_token', $token)
+            ->firstOrFail();
 
         $meetings = $user->subscribedClasses()
             ->with('meetings.classroom.teacher')
