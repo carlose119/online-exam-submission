@@ -142,7 +142,18 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 - Each file is limited to 50 MB by default. Web server and PHP upload limits must be at least as large.
 - All distinct active `FILE` paths across classes owned by one teacher count toward a 5 GB aggregate quota by default. `LINK` and `MEETING` URLs do not consume file quota.
 - The material-list heading shows used, limit, and remaining storage. An upload that would exceed the quota is rejected before permanent storage with the current usage summary.
-- Replacing, switching, or deleting a `FILE` material removes its obsolete managed file after the database commit when no active material still references it. Historical and class-cascade orphans are not reconciled automatically yet.
+- Replacing, switching, or deleting a `FILE` material removes its obsolete managed file after the database commit when no active material still references it.
+
+### Material file reconciliation
+
+Use the operator command to find historical files and leftovers from database class cascades beneath the configured managed prefix. It never scans or deletes outside that boundary, and active `FILE` references are always preserved.
+
+```bash
+php artisan materials:reconcile
+php artisan materials:reconcile --delete
+```
+
+The default dry-run reports exact scanned, active, orphaned, deleted, skipped, and failed counts without changing files or printing managed paths. Review it first, then add `--delete`; production deletion also requires explicit `--force`. A scan or deletion failure returns a non-zero exit code for monitoring and automation.
 
 ## Verification
 
@@ -235,7 +246,7 @@ The application uses one `User` model with role-based boundaries. Students use t
 | Symptom | Current fix |
 |---|---|
 | Vite manifest missing or pages have no compiled assets | Run `npm ci` and `npm run build`. During development, keep `npm run dev` running, or use `composer run dev` for the full process set. Deploy `public/build` with the application. |
-| Public material URL returns 404 | Run `php artisan storage:link`, confirm `public/storage` targets `storage/app/public`, and verify the referenced file exists. The application does not currently reconcile orphaned material files. |
+| Public material URL returns 404 | Run `php artisan storage:link`, confirm `public/storage` targets `storage/app/public`, and verify the referenced file exists. Use `php artisan materials:reconcile` to inspect orphan counts; reconciliation does not restore missing active files. |
 | Database connection, missing-table, or migration error | Recheck `DB_CONNECTION` and `DB_*`, create the selected database/file, then run `php artisan migrate:status` and `php artisan migrate --seed`. Never troubleshoot against production data. |
 | A large PDF/Excel report stays queued | Start `php artisan queue:work`, verify `QUEUE_CONNECTION` and the `jobs` migration, and inspect failed jobs/logs. Reports at or above `REPORTS_SYNC_THRESHOLD` attempts are asynchronous. |
 | Password-reset or application email is not delivered | `MAIL_MAILER=log` writes mail to application logs and does not deliver it. Configure a supported delivery mailer and provider variables for non-local environments. |
