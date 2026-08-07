@@ -16,38 +16,65 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 
 ## Stack
 
-- PHP 8.3 or newer and Laravel 13
+- PHP 8.4.1 or newer for the current lockfile, Composer 2, and Laravel 13
 - Filament 5 and Livewire 4
-- MariaDB/MySQL for development and production data
+- MariaDB 10.11 in concurrency CI; MariaDB/MySQL connections for development and production data
 - SQLite in memory for the normal test suite
-- Vite, Tailwind CSS, Alpine.js, and Node.js 22 in CI
+- Vite, Tailwind CSS, Alpine.js, and Node.js 22 with npm in CI
 - Pest 4 and Laravel Pint
 
-## Quick Start
+## Installation
 
 ### Prerequisites
 
-Install PHP with the extensions required by Laravel and the selected database, Composer 2, Node.js with npm, and MariaDB/MySQL if you are not using another supported local database.
+Install these project-supported tools before resolving dependencies:
 
-### Install
+| Tool | Supported baseline |
+|---|---|
+| PHP | 8.4.1 or newer. `composer.json` permits `^8.3`, but packages in the current `composer.lock` require 8.4.1. CI uses PHP 8.4. |
+| PHP extensions | `ctype`, `curl`, `dom`, `fileinfo`, `filter`, `gd`, `hash`, `intl`, `json`, `mbstring`, `openssl`, `pdo`, `session`, `tokenizer`, `xml`, and `zip`; add `pdo_mysql` for MariaDB/MySQL or `pdo_sqlite` for SQLite and normal tests. |
+| Composer | Composer 2, matching CI. |
+| Node.js | Node.js 22 with npm, matching CI. |
+| Database | MariaDB 10.11 is CI-verified for concurrency behavior. The application also defines MySQL and SQLite connections; use the PDO extension for the selected engine. |
 
-1. Install backend and frontend dependencies:
+### Clone and install
+
+1. Clone the repository and install locked backend and frontend dependencies:
 
    ```bash
+   git clone https://github.com/carlose119/online-exam-submission.git
+   cd online-exam-submission
    composer install
    npm ci
    ```
 
-2. Create the local environment file and application key:
+2. Create the local environment file and generate an application key:
 
    ```bash
    cp .env.example .env
    php artisan key:generate
    ```
 
-3. Create a local database, then set the `DB_*` values in `.env`. Do not reuse a production database.
+3. Create an empty local database and configure `.env` with generic, environment-specific values. Do not commit `.env` or reuse a production database.
 
-4. Prepare the application and frontend assets:
+   ```dotenv
+   APP_ENV=local
+   APP_URL=http://localhost:8000
+
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=online_exam_submission
+   DB_USERNAME=app_user
+   DB_PASSWORD=replace-with-a-local-password
+
+   QUEUE_CONNECTION=database
+   MAIL_MAILER=log
+   ```
+
+   Laravel's `mysql` connection supports both MariaDB and MySQL. Alternatively, use `sqlite` with an existing writable `DB_DATABASE` file. Important optional controls include `REPORTS_SYNC_THRESHOLD`, `STUDY_MATERIALS_TEACHER_QUOTA_BYTES`, and `STUDY_MATERIALS_MAX_UPLOAD_KILOBYTES`. Configure a real `MAIL_MAILER` and its provider-specific variables when password-reset or application email must leave the application.
+
+4. Create the schema and development administrator, expose public uploads, and build frontend assets:
 
    ```bash
    php artisan migrate --seed
@@ -61,7 +88,9 @@ Install PHP with the extensions required by Laravel and the selected database, C
    composer run dev
    ```
 
-The application is normally available at `http://localhost:8000`; the Filament panel is at `http://localhost:8000/admin`.
+   This Composer script runs the Laravel server, a database queue listener, Pail logs, and the Vite development server together. The application is normally available at `http://localhost:8000`; the Filament panel is at `http://localhost:8000/admin`.
+
+For a production-like local run, use `npm run build` and serve Laravel without the Vite development server. Run `php artisan queue:work` as a separately supervised process when `QUEUE_CONNECTION` is asynchronous; otherwise larger report exports remain pending. Deployment must provide a writable `storage` tree, the public storage link, migrated database, built `public/build` assets, and correctly configured `APP_URL`.
 
 ### Seeded Administrator
 
@@ -76,6 +105,45 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before seeding to override these values. 
 
 Students create their own accounts at `/register`. Teacher accounts are managed by an administrator in Filament.
 
+## System Usage
+
+The core dependency is the class: an administrator creates a teacher account, the teacher creates a class, and only then can the teacher attach invitations, materials, exams, or meetings. Students must join that class before its protected dashboard, exam, and calendar actions are available.
+
+### Administrator
+
+1. Sign in at `/admin` with an `ADMIN` account.
+2. Open **Teachers** to create or edit teacher accounts, suspend/reactivate access, generate a one-time visible temporary password, or delete an account.
+3. Open **Reports** to view report summaries across all classes and export class performance as PDF or Excel. Reports show exam, student, and attempt counts; large exports require the queue worker.
+
+Administrators do not use public registration to create teachers. Student registration always assigns the `STUDENT` role, while the Teachers resource is restricted to administrators.
+
+### Teacher
+
+1. Sign in at `/admin` with the account created by an administrator.
+2. Create a class first. Share its generated invitation URL/code with students; teacher-facing class, material, exam, and report queries are scoped to owned classes.
+3. Add **Study Materials** as a `FILE`, `LINK`, or `MEETING` reference. Material storage usage appears above the material list.
+4. Create an exam for one owned class, then add ordered single-choice or multiple-choice questions, at least two answer options per question, correct-option flags, points, duration, and maximum score.
+5. Create meetings for a class with a schedule, duration, optional URL and agenda. Recurrence supports weekly, biweekly, or monthly materialized instances, up to 52 instances from the creation form.
+6. Open **Reports** for an owned class to review performance and download PDF or Excel output.
+
+The `MEETING` study-material type is a dated link shown with class materials; the separate **Meetings** resource provides scheduled meetings, recurrence, and student calendar export.
+
+### Student
+
+1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account.
+2. Open a teacher's invitation URL and join while authenticated. Joining is idempotent, and the class then appears on `/dashboard`.
+3. Use the dashboard to review joined classes and their materials, exams, and meetings. `/profile` displays the student's read-only account and enrollment information.
+4. Start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
+5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. Regenerate the feed token if the URL is exposed.
+
+### Material uploads
+
+- `FILE` accepts PDF, DOCX, XLSX, and MP4 uploads on the public disk. `php artisan storage:link` must expose `storage/app/public` through `public/storage`.
+- Each file is limited to 50 MB by default. Web server and PHP upload limits must be at least as large.
+- All distinct active `FILE` paths across classes owned by one teacher count toward a 5 GB aggregate quota by default. `LINK` and `MEETING` URLs do not consume file quota.
+- The material-list heading shows used, limit, and remaining storage. An upload that would exceed the quota is rejected before permanent storage with the current usage summary.
+- Automatic deleted-file cleanup and orphan reconciliation are not implemented yet; do not describe database-record deletion as physical-file cleanup.
+
 ## Verification
 
 Run the same core checks used by the primary CI workflow:
@@ -86,7 +154,14 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **252 tests and 810 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **264 tests and 849 assertions**.
+
+For a fresh installation, also confirm the application can boot and the schema is current:
+
+```bash
+php artisan about
+php artisan migrate:status
+```
 
 ### CI Checks
 
@@ -154,6 +229,17 @@ The application uses one `User` model with role-based boundaries. Students use t
 - Reports with at least `REPORTS_SYNC_THRESHOLD` attempts, 100 by default, are queued. Keep a queue worker running in environments that generate larger reports; `composer run dev` starts one locally.
 - Uploaded public materials require `php artisan storage:link`. Server upload limits must accommodate the application's maximum material size.
 - The single-meeting `.ics` endpoint requires an authenticated student subscribed to the meeting's class. The aggregate feed is public only through its opaque token.
+
+## Troubleshooting
+
+| Symptom | Current fix |
+|---|---|
+| Vite manifest missing or pages have no compiled assets | Run `npm ci` and `npm run build`. During development, keep `npm run dev` running, or use `composer run dev` for the full process set. Deploy `public/build` with the application. |
+| Public material URL returns 404 | Run `php artisan storage:link`, confirm `public/storage` targets `storage/app/public`, and verify the referenced file exists. The application does not currently reconcile orphaned material files. |
+| Database connection, missing-table, or migration error | Recheck `DB_CONNECTION` and `DB_*`, create the selected database/file, then run `php artisan migrate:status` and `php artisan migrate --seed`. Never troubleshoot against production data. |
+| A large PDF/Excel report stays queued | Start `php artisan queue:work`, verify `QUEUE_CONNECTION` and the `jobs` migration, and inspect failed jobs/logs. Reports at or above `REPORTS_SYNC_THRESHOLD` attempts are asynchronous. |
+| Password-reset or application email is not delivered | `MAIL_MAILER=log` writes mail to application logs and does not deliver it. Configure a supported delivery mailer and provider variables for non-local environments. |
+| A route or Filament resource returns 403 or is hidden | Use the intended role and ownership boundary: students use web routes, administrators/teachers use `/admin`, teachers only manage owned class data, and students must join a class before protected exam/calendar access. Do not bypass authorization by changing role values manually. |
 
 ## SDD Artifacts
 
