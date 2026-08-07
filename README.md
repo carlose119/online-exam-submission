@@ -95,6 +95,26 @@ The normal Pest configuration uses SQLite `:memory:` and does not require MariaD
 | [`.github/workflows/quality.yml`](.github/workflows/quality.yml) | `PHP quality` | Composer validation/install, generated Filament asset drift, Pint, and the normal Pest suite. |
 | [`.github/workflows/quality.yml`](.github/workflows/quality.yml) | `Frontend build` | Reproducible npm install and Vite production build. |
 | [`.github/workflows/database-concurrency.yml`](.github/workflows/database-concurrency.yml) | `mariadb-concurrency` | Isolated locking and race-condition checks against MariaDB 10.11/InnoDB. |
+| [`.github/workflows/security.yml`](.github/workflows/security.yml) | `PHP static analysis` | Larastan/PHPStan analysis of `app/` at level 1. |
+| [`.github/workflows/security.yml`](.github/workflows/security.yml) | `Dependency vulnerability audit` | Composer and npm lockfile advisory checks. |
+
+## Security and Dependency Maintenance
+
+Dependabot checks Composer, npm, and GitHub Actions every Monday at 06:00 UTC. Compatible minor and patch updates are grouped per ecosystem, each ecosystem is capped at three open pull requests, and updates are never merged automatically. The `Security` workflow runs on pull requests, manually, and every Monday at 09:00 UTC so newly disclosed dependency advisories are checked without a code change.
+
+Run the same checks locally:
+
+```bash
+composer analyse
+composer audit --locked --no-interaction
+npm audit --package-lock-only --audit-level=high
+```
+
+Larastan analyzes `app/` at PHPStan level 1 without a baseline or broad exclusions. Level 1 is the highest currently clean ratchet: fix new findings rather than suppressing them, and raise the level when existing code passes the next level. Composer advisories and high or critical npm advisories fail CI; lower-severity npm findings remain visible and must be triaged for reachability, available fixes, and deployment impact.
+
+Maintainers should prioritize exploitable production findings, update the narrowest affected dependency set, and run the normal quality checks before merging. Record and periodically revisit any deferred remediation; do not add an ignore or advisory exception without a concrete, documented reason and review date.
+
+GitHub CodeQL does not support PHP, so this repository uses Larastan/PHPStan for PHP static analysis instead of claiming a nonfunctional CodeQL PHP check. These checks do not perform penetration testing, production monitoring, automatic dependency merging, or complete vulnerability detection.
 
 ### MariaDB Concurrency Suite
 
