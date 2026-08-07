@@ -8,6 +8,7 @@ use App\Filament\Resources\StudyMaterialResource\Pages\EditStudyMaterial;
 use App\Filament\Resources\StudyMaterialResource\Pages\ListStudyMaterials;
 use App\Models\SchoolClass;
 use App\Models\StudyMaterial;
+use App\Services\StudyMaterialStorageQuota;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
@@ -24,6 +25,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class StudyMaterialResource extends Resource
 {
@@ -68,32 +70,44 @@ class StudyMaterialResource extends Resource
                 // FILE type: FileUpload stores to uploaded_file; merged into file_path_or_url on save
                 FileUpload::make('uploaded_file')
                     ->label('File')
-                    ->visible(fn (Get $get): bool => $get('type') === StudyMaterialType::File->value)
-                    ->disk('public')
-                    ->directory(fn (Get $get): string => 'materials/'.$get('class_id'))
+                    ->visible(fn (Get $get): bool => static::isType($get, StudyMaterialType::File))
+                    ->disk(config('study-materials.disk'))
+                    ->directory(fn (Get $get): string => trim(config('study-materials.prefix'), '/').'/'.$get('class_id'))
                     ->acceptedFileTypes([
                         'application/pdf',
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         'video/mp4',
                     ])
-                    ->maxSize(50 * 1024)
+                    ->maxSize(config('study-materials.max_upload_kilobytes'))
+                    ->rules(fn (Get $get, ?StudyMaterial $record): array => [
+                        function (string $attribute, TemporaryUploadedFile $file, \Closure $fail) use ($get, $record): void {
+                            $message = app(StudyMaterialStorageQuota::class)->violation(
+                                (int) Auth::id(),
+                                (int) $get('class_id'),
+                                $file->getSize(),
+                                $record,
+                            );
+
+                            if ($message !== null) {
+                                $fail($message);
+                            }
+                        },
+                    ])
                     ->downloadable()
                     ->visibility('public'),
 
                 // LINK / MEETING type: URL input mapped directly to DB column
                 TextInput::make('file_path_or_url')
                     ->label('URL')
-                    ->visible(fn (Get $get): bool => in_array($get('type'), [
-                        StudyMaterialType::Link->value,
-                        StudyMaterialType::Meeting->value,
-                    ], true))
+                    ->visible(fn (Get $get): bool => static::isType($get, StudyMaterialType::Link)
+                        || static::isType($get, StudyMaterialType::Meeting))
                     ->url()
                     ->maxLength(2048),
 
                 // MEETING metadata section — sub-fields packed into extra_metadata JSON on save
                 Section::make('Meeting Details')
-                    ->visible(fn (Get $get): bool => $get('type') === StudyMaterialType::Meeting->value)
+                    ->visible(fn (Get $get): bool => static::isType($get, StudyMaterialType::Meeting))
                     ->schema([
                         TextInput::make('meeting_title')
                             ->label('Meeting Title')
@@ -142,5 +156,12 @@ class StudyMaterialResource extends Resource
             'create' => CreateStudyMaterial::route('/create'),
             'edit' => EditStudyMaterial::route('/{record}/edit'),
         ];
+    }
+
+    private static function isType(Get $get, StudyMaterialType $type): bool
+    {
+        $state = $get('type');
+
+        return $state === $type || $state === $type->value;
     }
 }
