@@ -39,3 +39,29 @@ test('users can logout', function () {
     $this->assertGuest();
     $response->assertRedirect('/');
 });
+
+test('unverified student login preserves only invitation discovery as intended', function () {
+    $user = User::factory()->unverified()->create(['role' => 'STUDENT']);
+
+    $response = $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+        'redirect' => '/clase/unirse/LOGIN123',
+    ]);
+
+    $response->assertRedirect(route('verification.notice'))
+        ->assertSessionHas('url.intended', '/clase/unirse/LOGIN123');
+});
+
+test('login rejects external and non-invitation return urls', function (string $redirect) {
+    $user = User::factory()->create(['role' => 'STUDENT']);
+
+    $this->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+        'redirect' => $redirect,
+    ])->assertRedirect(route('dashboard', absolute: false));
+})->with([
+    'external' => 'https://example.com/clase/unirse/LOGIN123',
+    'other local route' => '/profile',
+]);

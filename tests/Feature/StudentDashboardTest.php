@@ -60,7 +60,7 @@ it('dashboard shows subscribed classes as cards', function () {
         'invitation_code' => 'PHYSCARD',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Card Student',
         'email' => 'card-student@test.com',
         'password' => 'password',
@@ -87,7 +87,7 @@ it('dashboard shows subscribed classes as cards', function () {
 // ---------------------------------------------------------------------------
 
 it('dashboard shows empty state when no subscriptions', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Empty Student',
         'email' => 'empty-student@test.com',
         'password' => 'password',
@@ -128,7 +128,7 @@ it('dashboard shows available exams with start link', function () {
         'max_score' => 10,
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Exam Student',
         'email' => 'exam-dash-student@test.com',
         'password' => 'password',
@@ -173,7 +173,7 @@ it('dashboard shows completed exams with scores', function () {
         'max_score' => 15,
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Done Student',
         'email' => 'done-student@test.com',
         'password' => 'password',
@@ -233,7 +233,7 @@ it('dashboard does not show attempted exam in available exams', function () {
         'max_score' => 5,
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Hide Student',
         'email' => 'hide-student@test.com',
         'password' => 'password',
@@ -295,7 +295,7 @@ it('dashboard shows upcoming meetings from subscribed classes', function () {
         'scheduled_at' => now()->addDays(2),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Meeting Student',
         'email' => 'meeting-student@test.com',
         'password' => 'password',
@@ -339,7 +339,7 @@ it('dashboard shows next 5 meetings ordered by scheduled_at asc', function () {
     Meeting::create(['class_id' => $class->id, 'title' => 'Aug 10', 'scheduled_at' => now()->addDays(10)]);
     Meeting::create(['class_id' => $class->id, 'title' => 'Aug 0', 'scheduled_at' => now()->addHours(6)]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Order Student',
         'email' => 'order-meet-stu@test.com',
         'password' => 'password',
@@ -369,7 +369,7 @@ it('dashboard shows next 5 meetings ordered by scheduled_at asc', function () {
 // ---------------------------------------------------------------------------
 
 it('dashboard shows empty state when no upcoming meetings', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'NoMeet Student',
         'email' => 'nomeet-student@test.com',
         'password' => 'password',
@@ -414,7 +414,7 @@ it('dashboard does not show past meetings in live section', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'PastMeet Student',
         'email' => 'pastmeet-stu@test.com',
         'password' => 'password',
@@ -458,7 +458,7 @@ it('dashboard does not show meetings from unsubscribed classes', function () {
     Meeting::create(['class_id' => $subscribedClass->id, 'title' => 'Visible Meeting', 'scheduled_at' => now()->addDay()]);
     Meeting::create(['class_id' => $unsubscribedClass->id, 'title' => 'Hidden Meeting', 'scheduled_at' => now()->addDay()]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Isolate Student',
         'email' => 'iso-student@test.com',
         'password' => 'password',
@@ -508,7 +508,7 @@ it('dashboard shows live now indicator for meetings within live window', functio
         'scheduled_at' => now()->addDays(1),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'LiveNow Student',
         'email' => 'livenow-stu@test.com',
         'password' => 'password',
@@ -553,7 +553,7 @@ it('dashboard shows join button for live meetings with url set', function () {
         'meeting_url' => 'https://meet.google.com/xyz-join',
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'JoinBtn Student',
         'email' => 'joinbtn-stu@test.com',
         'password' => 'password',
@@ -577,7 +577,7 @@ it('dashboard shows join button for live meetings with url set', function () {
 // ---------------------------------------------------------------------------
 
 it('dashboard displays Mi perfil link', function () {
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'Link Student',
         'email' => 'link-dash@test.com',
         'password' => 'password',
@@ -590,4 +590,12 @@ it('dashboard displays Mi perfil link', function () {
     $response->assertStatus(200);
     $response->assertSee('Mi perfil');
     $response->assertSee(route('profile.show'));
+});
+
+it('dashboard redirects unverified students to the verification notice', function () {
+    $student = User::factory()->unverified()->create(['role' => 'STUDENT']);
+
+    $this->actingAs($student)
+        ->get(route('dashboard'))
+        ->assertRedirect(route('verification.notice'));
 });

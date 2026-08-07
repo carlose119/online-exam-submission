@@ -317,7 +317,7 @@ it('renders download ics link on dashboard', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    $student = User::create([
+    $student = User::factory()->create([
         'name' => 'DashIcal Student',
         'email' => 'dashical-stu@test.com',
         'password' => 'password',
