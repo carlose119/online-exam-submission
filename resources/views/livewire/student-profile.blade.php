@@ -35,10 +35,64 @@
             margin: 0 0 0.25rem 0;
             font-size: 1.5rem;
         }
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
         .profile-info .email {
             color: #64748b;
             font-size: 0.9375rem;
             margin: 0;
+        }
+        .name-form {
+            margin-top: 1rem;
+        }
+        .name-form label {
+            display: block;
+            margin-bottom: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .name-controls {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.625rem;
+        }
+        .name-controls input {
+            width: min(100%, 24rem);
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font: inherit;
+        }
+        .name-controls input:focus {
+            border-color: #2563eb;
+            outline: 2px solid #bfdbfe;
+            outline-offset: 1px;
+        }
+        .name-controls button {
+            border: 0;
+            border-radius: 6px;
+            padding: 0.5625rem 0.875rem;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .name-controls button:disabled {
+            cursor: wait;
+            opacity: 0.7;
+        }
+        .field-error {
+            margin: 0.375rem 0 0;
+            color: #b91c1c;
+            font-size: 0.875rem;
+        }
+        .status-message {
+            margin: 0.5rem 0 0;
+            color: #166534;
+            font-size: 0.875rem;
         }
         .role-badge {
             display: inline-block;
@@ -127,6 +181,20 @@
             border: none;
             cursor: pointer;
         }
+        @media (max-width: 640px) {
+            .profile-header {
+                align-items: flex-start;
+                padding: 1.25rem;
+            }
+            .profile-avatar {
+                width: 56px;
+                height: 56px;
+                font-size: 1.5rem;
+            }
+            .name-controls {
+                flex-direction: column;
+            }
+        }
     </style>
 
     <div class="logout">
@@ -144,6 +212,30 @@
             <h1>{{ $user->name }}</h1>
             <p class="email">{{ $user->email }}</p>
             <span class="role-badge">{{ $user->role }}</span>
+
+            <form wire:submit="updateName" class="name-form">
+                <label for="profile-name">Nombre</label>
+                <div class="name-controls">
+                    <input
+                        id="profile-name"
+                        type="text"
+                        wire:model="name"
+                        maxlength="255"
+                        autocomplete="name"
+                        required
+                        @error('name') aria-invalid="true" aria-describedby="profile-name-error" @enderror
+                    >
+                    <button type="submit" wire:loading.attr="disabled" wire:target="updateName">
+                        Guardar nombre
+                    </button>
+                </div>
+                @error('name')
+                    <p id="profile-name-error" class="field-error" role="alert">{{ $message }}</p>
+                @enderror
+                @if (session('status'))
+                    <p class="status-message" role="status" aria-live="polite">{{ session('status') }}</p>
+                @endif
+            </form>
         </div>
     </div>
 

@@ -1,11 +1,14 @@
 <?php
 
+use App\Livewire\StudentProfile;
 use App\Models\Exam;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\StudyMaterial;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
 // Access Control — Student can access profile
@@ -264,4 +267,94 @@ it('redirects unverified students to the verification notice', function () {
     $this->actingAs($student)
         ->get(route('profile.show'))
         ->assertRedirect(route('verification.notice'));
+});
+
+it('updates and persists the authenticated student name', function () {
+    $student = User::factory()->create(['name' => 'Nombre anterior', 'role' => 'STUDENT']);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('name', 'Nombre actualizado')
+        ->call('updateName')
+        ->assertHasNoErrors()
+        ->assertSee('Nombre actualizado.');
+
+    expect($student->refresh()->name)->toBe('Nombre actualizado');
+});
+
+it('requires a name no longer than 255 characters', function () {
+    $student = User::factory()->create(['role' => 'STUDENT']);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('name', '')
+        ->call('updateName')
+        ->assertHasErrors(['name' => 'required'])
+        ->set('name', str_repeat('a', 256))
+        ->call('updateName')
+        ->assertHasErrors(['name' => 'max']);
+
+    expect($student->refresh()->name)->not->toBe('');
+});
+
+it('preserves invalid name input and escapes it in validation feedback', function () {
+    $student = User::factory()->create(['name' => 'Nombre seguro', 'role' => 'STUDENT']);
+    $invalidName = '<script>alert("xss")</script>'.str_repeat('a', 256);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('name', $invalidName)
+        ->call('updateName')
+        ->assertHasErrors(['name' => 'max'])
+        ->assertSet('name', $invalidName)
+        ->assertDontSeeHtml('<script>alert("xss")</script>');
+
+    expect($student->refresh()->name)->toBe('Nombre seguro');
+});
+
+it('rejects a profile update when the Livewire actor becomes unauthorized', function () {
+    $student = User::factory()->create(['name' => 'Nombre seguro', 'role' => 'STUDENT']);
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $component = Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('name', 'Nombre comprometido');
+
+    $this->actingAs($teacher);
+
+    $component->call('updateName')->assertForbidden();
+
+    expect($student->refresh()->name)->toBe('Nombre seguro');
+});
+
+it('rejects a profile update when verification or authentication is lost', function () {
+    $student = User::factory()->create(['name' => 'Nombre seguro', 'role' => 'STUDENT']);
+    $unverified = User::factory()->unverified()->create(['role' => 'STUDENT']);
+    $component = Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('name', 'Nombre comprometido');
+
+    $this->actingAs($unverified);
+    $component->call('updateName')->assertForbidden();
+
+    Auth::logout();
+    Livewire::test(StudentProfile::class)->assertForbidden();
+
+    expect($student->refresh()->name)->toBe('Nombre seguro');
+});
+
+it('ignores client account identifiers and only updates the authenticated student', function () {
+    $student = User::factory()->create(['name' => 'Estudiante autenticado', 'role' => 'STUDENT']);
+    $otherStudent = User::factory()->create(['name' => 'Otra cuenta', 'role' => 'STUDENT']);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class, [
+            'user' => $otherStudent,
+            'userId' => $otherStudent->id,
+        ])
+        ->set('name', 'Solo mi cuenta')
+        ->call('updateName')
+        ->assertHasNoErrors();
+
+    expect($student->refresh()->name)->toBe('Solo mi cuenta')
+        ->and($otherStudent->refresh()->name)->toBe('Otra cuenta');
 });

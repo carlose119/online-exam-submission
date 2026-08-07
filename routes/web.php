@@ -42,7 +42,7 @@ Route::middleware(['auth', 'role:STUDENT', 'verified'])->group(function () {
         ->name('meetings.ics');
 });
 
-// Student profile (read-only, replaces Breeze profile routes)
+// Student profile (name editing and read-only enrollment summary)
 Route::get('/profile', StudentProfile::class)
     ->name('profile.show')
     ->middleware(['auth', 'role:STUDENT', 'verified']);
