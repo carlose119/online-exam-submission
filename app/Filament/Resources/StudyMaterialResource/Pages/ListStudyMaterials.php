@@ -4,6 +4,7 @@ namespace App\Filament\Resources\StudyMaterialResource\Pages;
 
 use App\Filament\Resources\StudyMaterialResource;
 use App\Services\StudyMaterialStorageQuota;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,5 +15,12 @@ class ListStudyMaterials extends ListRecords
     public function getSubheading(): string
     {
         return app(StudyMaterialStorageQuota::class)->summary((int) Auth::id());
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            CreateAction::make(),
+        ];
     }
 }
