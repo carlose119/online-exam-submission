@@ -212,7 +212,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **360 tests and 1,305 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **367 tests and 1,346 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
