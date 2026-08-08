@@ -150,7 +150,7 @@ it('allows access to take when timer has not expired', function () {
 // Timer NOT expired → normal answer processing
 // ---------------------------------------------------------------------------
 
-it('allows answer when timer has not expired', function () {
+it('allows and finalizes the last answer when timer has not expired', function () {
     $data = seedTimerTest(30);
 
     $attempt = StudentAttempt::create([
@@ -167,12 +167,11 @@ it('allows answer when timer has not expired', function () {
             'options' => [$data['question']->options()->where('is_correct', true)->first()->id],
         ]);
 
-    // Should redirect to take (not result) — timer is still valid.
-    $response->assertRedirect();
+    $response->assertRedirect(route('student.exam.result', $attempt));
     $response->assertSessionMissing('errors');
 
     $attempt->refresh();
-    expect($attempt->finished_at)->toBeNull();
+    expect($attempt->finished_at)->not->toBeNull();
 });
 
 it('rejects a late Livewire save and next answer before persisting it', function () {
@@ -186,7 +185,7 @@ it('rejects a late Livewire save and next answer before persisting it', function
 
     $component = Livewire::actingAs($data['student'])
         ->test(ExamTake::class, ['attempt' => $attempt])
-        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id]);
+        ->set("singleSelections.{$data['question']->id}", (string) $correctOption->id);
 
     $this->travel(31)->minutes();
 
@@ -217,7 +216,7 @@ it('rejects a late Livewire finalize answer before grading it', function () {
 
     $component = Livewire::actingAs($data['student'])
         ->test(ExamTake::class, ['attempt' => $attempt])
-        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id]);
+        ->set("singleSelections.{$data['question']->id}", (string) $correctOption->id);
 
     $this->travel(31)->minutes();
 
@@ -243,7 +242,7 @@ it('persists an unexpired Livewire save and next answer normally', function () {
 
     Livewire::actingAs($data['student'])
         ->test(ExamTake::class, ['attempt' => $attempt])
-        ->set("selectedOptions.{$data['question']->id}", [$correctOption->id])
+        ->set("singleSelections.{$data['question']->id}", (string) $correctOption->id)
         ->call('saveAndNext')
         ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
 
