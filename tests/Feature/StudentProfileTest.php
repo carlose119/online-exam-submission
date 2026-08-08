@@ -6,8 +6,10 @@ use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\StudyMaterial;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
@@ -213,7 +215,7 @@ it('shows empty state when no subscribed classes', function () {
 // Data Display — No deferred features present
 // ---------------------------------------------------------------------------
 
-it('does not show deferred features (exam history, meeting history, password form, unjoin button, editable fields)', function () {
+it('does not show deferred password, history, deletion, or enrollment actions', function () {
     $student = User::factory()->create([
         'name' => 'Deferred Student',
         'email' => 'deferred@test.com',
@@ -226,10 +228,9 @@ it('does not show deferred features (exam history, meeting history, password for
 
     $response->assertStatus(200);
 
-    // Must NOT contain any password inputs or profile-editing UI
-    $response->assertDontSee('type="password"', false);
-    $response->assertDontSee('current_password');
+    // Must NOT contain password-change or account-deletion UI
     $response->assertDontSee('new_password');
+    $response->assertDontSee('Eliminar cuenta');
     $response->assertDontSee('Unirse a esta clase', false);
 
     // Must NOT contain editing links that point to profile editing routes
@@ -357,4 +358,185 @@ it('ignores client account identifiers and only updates the authenticated studen
 
     expect($student->refresh()->name)->toBe('Solo mi cuenta')
         ->and($otherStudent->refresh()->name)->toBe('Otra cuenta');
+});
+
+it('changes email, invalidates verification, sends one notification, and clears the password', function () {
+    Notification::fake();
+    $student = User::factory()->create([
+        'email' => 'old-email@example.com',
+        'password' => 'correct-password',
+        'role' => 'STUDENT',
+    ]);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', '  New-Email@Example.COM  ')
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertHasNoErrors()
+        ->assertSet('email', 'new-email@example.com')
+        ->assertSet('currentPassword', '')
+        ->assertRedirect(route('verification.notice'));
+
+    $student->refresh();
+
+    expect($student->email)->toBe('new-email@example.com')
+        ->and($student->hasVerifiedEmail())->toBeFalse();
+    Notification::assertSentToTimes($student, VerifyEmail::class, 1);
+});
+
+it('rejects an incorrect current password without retaining it', function () {
+    Notification::fake();
+    $student = User::factory()->create([
+        'email' => 'password-check@example.com',
+        'password' => 'correct-password',
+        'role' => 'STUDENT',
+    ]);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', 'safe-new@example.com')
+        ->set('currentPassword', 'wrong-password')
+        ->call('updateEmail')
+        ->assertHasErrors(['currentPassword' => 'current_password'])
+        ->assertSet('email', 'safe-new@example.com')
+        ->assertSet('currentPassword', '');
+
+    expect($student->refresh()->email)->toBe('password-check@example.com')
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+});
+
+it('rejects an email already used by another account', function () {
+    Notification::fake();
+    User::factory()->create(['email' => 'taken@example.com']);
+    $student = User::factory()->create([
+        'email' => 'available@example.com',
+        'password' => 'correct-password',
+        'role' => 'STUDENT',
+    ]);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', ' TAKEN@example.com ')
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertHasErrors(['email' => 'unique'])
+        ->assertSet('email', 'taken@example.com')
+        ->assertSet('currentPassword', '');
+
+    expect($student->refresh()->email)->toBe('available@example.com')
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+});
+
+it('rejects malformed and overlong email addresses', function (string $email, string $rule) {
+    Notification::fake();
+    $student = User::factory()->create(['password' => 'correct-password', 'role' => 'STUDENT']);
+    $originalEmail = $student->email;
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', $email)
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertHasErrors(['email' => $rule])
+        ->assertSet('currentPassword', '');
+
+    expect($student->refresh()->email)->toBe($originalEmail)
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+})->with([
+    'malformed' => ['not-an-email', 'email'],
+    'overlong' => [str_repeat('a', 244).'@example.com', 'max'],
+]);
+
+it('explicitly rejects an unchanged email without invalidating verification', function () {
+    Notification::fake();
+    $student = User::factory()->create([
+        'email' => 'same@example.com',
+        'password' => 'correct-password',
+        'role' => 'STUDENT',
+    ]);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', ' SAME@EXAMPLE.COM ')
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertHasErrors(['email'])
+        ->assertSee('El nuevo correo electrónico debe ser diferente del actual.')
+        ->assertSet('currentPassword', '');
+
+    expect($student->refresh()->email)->toBe('same@example.com')
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+});
+
+it('limits email change attempts to six per minute for the student and IP', function () {
+    Notification::fake();
+    $student = User::factory()->create(['password' => 'correct-password', 'role' => 'STUDENT']);
+    $component = Livewire::actingAs($student)->test(StudentProfile::class);
+
+    foreach (range(1, 6) as $attempt) {
+        $component
+            ->set('email', "attempt-{$attempt}@example.com")
+            ->set('currentPassword', 'wrong-password')
+            ->call('updateEmail')
+            ->assertHasErrors(['currentPassword' => 'current_password'])
+            ->assertSet('currentPassword', '');
+    }
+
+    $component
+        ->set('email', 'seventh@example.com')
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertHasErrors(['email'])
+        ->assertSee('Demasiados intentos.')
+        ->assertSet('currentPassword', '');
+
+    expect($student->refresh()->email)->not->toBe('seventh@example.com')
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+});
+
+it('changes only the re-resolved authenticated student email', function () {
+    Notification::fake();
+    $student = User::factory()->create(['password' => 'correct-password', 'role' => 'STUDENT']);
+    $otherStudent = User::factory()->create(['email' => 'other@example.com', 'role' => 'STUDENT']);
+
+    Livewire::actingAs($student)
+        ->test(StudentProfile::class, ['userId' => $otherStudent->id])
+        ->set('email', 'authenticated-only@example.com')
+        ->set('currentPassword', 'correct-password')
+        ->call('updateEmail')
+        ->assertRedirect(route('verification.notice'));
+
+    expect($student->refresh()->email)->toBe('authenticated-only@example.com')
+        ->and($student->hasVerifiedEmail())->toBeFalse()
+        ->and($otherStudent->refresh()->email)->toBe('other@example.com')
+        ->and($otherStudent->hasVerifiedEmail())->toBeTrue();
+    Notification::assertSentToTimes($student, VerifyEmail::class, 1);
+    Notification::assertNotSentTo($otherStudent, VerifyEmail::class);
+});
+
+it('rejects an email change when the Livewire actor becomes unauthorized', function () {
+    Notification::fake();
+    $student = User::factory()->create([
+        'email' => 'protected@example.com',
+        'password' => 'correct-password',
+        'role' => 'STUDENT',
+    ]);
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $component = Livewire::actingAs($student)
+        ->test(StudentProfile::class)
+        ->set('email', 'compromised@example.com')
+        ->set('currentPassword', 'correct-password');
+
+    $this->actingAs($teacher);
+    $component->call('updateEmail')->assertForbidden();
+
+    expect($student->refresh()->email)->toBe('protected@example.com')
+        ->and($student->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
 });
