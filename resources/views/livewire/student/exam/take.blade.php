@@ -53,16 +53,19 @@
             <h2>{{ $currentQuestion->type->getLabel() === 'Single' ? 'Seleccion unica' : 'Seleccion multiple' }}</h2>
             <p class="q-text">{{ $currentQuestion->text }}</p>
 
-            <form wire:submit.prevent="{{ $isLast ? 'finalize' : 'saveAndNext' }}">
+            <form method="POST"
+                  action="{{ route('student.exam.answer', ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
+                  wire:submit="{{ $isLast ? 'finalize' : 'saveAndNext' }}">
+                @csrf
                 @foreach ($currentQuestion->options as $option)
                     <label class="option">
                         <input type="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'checkbox' : 'radio' }}"
-                               name="options"
+                               name="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'options[]' : 'options' }}"
                                value="{{ $option->id }}"
-                               wire:model.change="selectedOptions.{{ $currentQuestion->id }}.{{ $loop->index }}"
-                               @if ($currentQuestion->type->value === 'SINGLE')
-                                   onclick="let checkboxes = this.closest('form').querySelectorAll('input[type=checkbox]'); checkboxes.forEach(cb => cb.checked = false);"
-                               @endif
+                               wire:model.change="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'multipleSelections' : 'singleSelections' }}.{{ $currentQuestion->id }}"
+                               @checked($currentQuestion->type->value === 'MULTIPLE'
+                                   ? in_array((string) $option->id, $multipleSelections[$currentQuestion->id] ?? [], true)
+                                   : ($singleSelections[$currentQuestion->id] ?? null) === (string) $option->id)
                                >
                         {{ $option->text }}
                     </label>

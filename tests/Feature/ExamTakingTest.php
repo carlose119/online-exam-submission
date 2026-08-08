@@ -221,11 +221,9 @@ it('saves answer and redirects back to take with next question', function () {
         ->post(route('student.exam.answer', [
             'attempt' => $attempt,
             'question' => $q1,
-        ]), [
-            'options' => [$correctOption->id],
-        ]);
+        ]), ['options' => $correctOption->id]);
 
-    $response->assertRedirect();
+    $response->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
     // Should have one answer row
     expect(StudentAnswer::where('student_attempt_id', $attempt->id)
         ->where('question_id', $q1->id)
@@ -672,6 +670,132 @@ it('ExamTake saveAndNext action redirects without TypeError', function () {
     $component->assertRedirect();
 });
 
+it('renders canonical Livewire submission with a POST fallback and input contracts', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+
+    $singleResponse = $this->actingAs($data['student'])->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 0]));
+    $singleResponse->assertOk()
+        ->assertSee('method="POST"', false)
+        ->assertSee('action="'.route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]).'"', false)
+        ->assertSee('wire:submit="saveAndNext"', false)
+        ->assertSee('name="_token"', false)
+        ->assertSee('name="options"', false)
+        ->assertSee("wire:model.change=\"singleSelections.{$single->id}\"", false)
+        ->assertDontSee('wire:submit.prevent', false);
+
+    $multipleResponse = $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+    $multipleResponse->assertOk()
+        ->assertSee('wire:submit="finalize"', false)
+        ->assertSee('name="options[]"', false)
+        ->assertSee("wire:model.change=\"multipleSelections.{$multiple->id}\"", false);
+});
+
+it('persists and finalizes the last answer through POST without a client finish flag', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    $selectedIds = $multiple->options()->where('is_correct', true)->pluck('id')->all();
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedIds])
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    $finishedAttempt = $attempt->fresh();
+    $this->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedIds])
+        ->assertSessionHasErrors('options');
+
+    expect($attempt->answers()->where('question_id', $multiple->id)->orderBy('answer_option_id')->pluck('answer_option_id')->all())->toBe($selectedIds)
+        ->and($attempt->fresh()->finished_at->equalTo($finishedAttempt->finished_at))->toBeTrue()
+        ->and($attempt->fresh()->score_obtained)->toBe($finishedAttempt->score_obtained);
+});
+
+it('does not let a client finish flag finalize an intermediate question', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), [
+            'options' => (string) $single->options()->firstOrFail()->id,
+            'finish' => '1',
+        ])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+
+    expect($attempt->fresh()->finished_at)->toBeNull();
+});
+
+it('persists a Livewire single selection and redirects to the next question', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $selected = $single->options()->where('is_correct', true)->firstOrFail();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("singleSelections.{$single->id}", (string) $selected->id)
+        ->call('saveAndNext')
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+
+    expect($attempt->answers()->where('question_id', $single->id)->pluck('answer_option_id')->all())->toBe([$selected->id]);
+});
+
+it('persists exactly the checked Livewire multiple selections', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    $selectedIds = $multiple->options()->where('is_correct', true)->pluck('id')->all();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set('currentIndex', 1)
+        ->set("multipleSelections.{$multiple->id}", array_map('strval', $selectedIds))
+        ->call('finalize')
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    expect($attempt->answers()->where('question_id', $multiple->id)->orderBy('answer_option_id')->pluck('answer_option_id')->all())
+        ->toBe($selectedIds);
+});
+
+it('restores a persisted single answer after navigating away and remounting', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $singleId = $single->options()->firstOrFail()->id;
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => (string) $singleId])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+    $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]))->assertOk();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->assertSet("singleSelections.{$single->id}", (string) $singleId);
+
+    $response = $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 0]));
+    expect($response->getContent())->toMatch('/<input[^>]+type="radio"[^>]+value="'.$singleId.'"[^>]+checked/s');
+});
+
+it('restores persisted multiple answers after navigating away and remounting', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    $selectedIds = $multiple->options()->where('is_correct', true)->pluck('id')->all();
+    $selectedValues = array_map('strval', $selectedIds);
+    Question::create(['exam_id' => $data['exam']->id, 'text' => 'Q3', 'type' => 'SINGLE', 'points' => 0, 'order' => 2]);
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedValues])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]));
+    $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]))->assertOk();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->assertSet("multipleSelections.{$multiple->id}", $selectedValues);
+
+    $html = $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]))->getContent();
+    foreach ($selectedIds as $optionId) {
+        expect($html)->toMatch('/<input[^>]+type="checkbox"[^>]+value="'.$optionId.'"[^>]+checked/s');
+    }
+});
+
 it('ExamTake saveAndNext rejects a foreign option without persistence', function () {
     $data = seedExamTaking();
     $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
@@ -679,7 +803,7 @@ it('ExamTake saveAndNext rejects a foreign option without persistence', function
     $foreign = $multiple->options()->where('is_correct', true)->first();
 
     Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
-        ->set("selectedOptions.{$single->id}", [$foreign->id])
+        ->set("singleSelections.{$single->id}", (string) $foreign->id)
         ->call('saveAndNext')
         ->assertHasErrors('options.0');
 
@@ -729,7 +853,7 @@ it('ExamTake finalize rejects a foreign option without persistence or grading', 
     $foreign = $multiple->options()->where('is_correct', true)->first();
 
     Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
-        ->set("selectedOptions.{$single->id}", [$foreign->id])
+        ->set("singleSelections.{$single->id}", (string) $foreign->id)
         ->call('finalize')
         ->assertHasErrors('options.0');
 
@@ -746,7 +870,7 @@ it('denies Livewire answer and finalize mutations after subscription is revoked'
     foreach (['saveAndNext', 'finalize'] as $action) {
         $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
         $component = Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
-            ->set("selectedOptions.{$question->id}", [$correct->id]);
+            ->set("singleSelections.{$question->id}", (string) $correct->id);
         $data['student']->subscribedClasses()->detach($data['class']->id);
 
         $component->call($action)->assertForbidden();

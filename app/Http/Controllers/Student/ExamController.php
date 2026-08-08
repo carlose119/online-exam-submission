@@ -92,6 +92,12 @@ class ExamController extends Controller
         $currentIndex = $questions->search(fn (Question $q) => $q->id === $question->id);
         $nextIndex = $currentIndex + 1;
 
+        if ($nextIndex >= $questions->count()) {
+            (new ExamGradingService)->gradeAttempt($attempt->fresh());
+
+            return redirect()->route('student.exam.result', $attempt);
+        }
+
         return redirect()->route('student.exam.take', [
             'attempt' => $attempt,
             'q' => $nextIndex,

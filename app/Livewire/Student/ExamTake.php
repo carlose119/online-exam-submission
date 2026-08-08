@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Student;
 
+use App\Enums\QuestionType;
 use App\Models\Question;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
@@ -24,8 +25,11 @@ class ExamTake extends Component
     /** @var Collection */
     public $questions;
 
-    /** @var array<int, array<int>> */
-    public array $selectedOptions = [];
+    /** @var array<int, string> */
+    public array $singleSelections = [];
+
+    /** @var array<int, array<int, string>> */
+    public array $multipleSelections = [];
 
     public function mount(StudentAttempt $attempt): void
     {
@@ -83,15 +87,22 @@ class ExamTake extends Component
      */
     private function loadExistingAnswers(): void
     {
-        $answers = StudentAnswer::where('student_attempt_id', $this->attempt->id)->get();
-        $this->selectedOptions = [];
+        $answers = StudentAnswer::with('question')
+            ->where('student_attempt_id', $this->attempt->id)
+            ->get();
+        $this->singleSelections = [];
+        $this->multipleSelections = [];
 
         foreach ($answers as $answer) {
             $qid = $answer->question_id;
-            if (! isset($this->selectedOptions[$qid])) {
-                $this->selectedOptions[$qid] = [];
+
+            if ($answer->question->type === QuestionType::Single) {
+                $this->singleSelections[$qid] = (string) $answer->answer_option_id;
+
+                continue;
             }
-            $this->selectedOptions[$qid][] = $answer->answer_option_id;
+
+            $this->multipleSelections[$qid][] = (string) $answer->answer_option_id;
         }
     }
 
@@ -120,13 +131,6 @@ class ExamTake extends Component
             return redirect()->route('student.exam.take', $this->attempt);
         }
 
-        // Build the redirect URL manually — the form POSTs to the controller.
-        // But for Livewire, we redirect via a full-page navigation.
-        $qid = $question->id;
-        $opts = $this->selectedOptions[$qid] ?? [];
-
-        // Build a POST-compatible redirect: encode options and redirect.
-        // Since we can't POST via redirect, we save inline here.
         $this->persistAnswer($question);
 
         $nextIndex = $this->currentIndex + 1;
@@ -142,7 +146,12 @@ class ExamTake extends Component
      */
     private function persistAnswer(Question $question): void
     {
-        $selected = $this->selectedOptions[$question->id] ?? [];
+        if ($question->type === QuestionType::Single) {
+            $optionId = $this->singleSelections[$question->id] ?? null;
+            $selected = $optionId === null ? [] : [$optionId];
+        } else {
+            $selected = $this->multipleSelections[$question->id] ?? [];
+        }
 
         app(AnswerSelectionWriter::class)->replace($this->attempt, $question, $selected);
     }
@@ -212,7 +221,6 @@ class ExamTake extends Component
             'currentQuestion' => $currentQuestion,
             'totalQuestions' => $this->questions->count(),
             'currentIndex' => $this->currentIndex,
-            'selectedOptions' => $this->selectedOptions,
             'deadline' => $this->deadline(),
             'isLast' => $this->currentIndex >= $this->questions->count() - 1,
         ]);
