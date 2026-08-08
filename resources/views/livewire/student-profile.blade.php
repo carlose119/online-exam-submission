@@ -59,7 +59,8 @@
             gap: 0.625rem;
         }
         .form-controls input,
-        .email-fields input {
+        .email-fields input,
+        .password-fields input {
             width: min(100%, 24rem);
             border: 1px solid #cbd5e1;
             border-radius: 6px;
@@ -67,7 +68,8 @@
             font: inherit;
         }
         .form-controls input:focus,
-        .email-fields input:focus {
+        .email-fields input:focus,
+        .password-fields input:focus {
             border-color: #2563eb;
             outline: 2px solid #bfdbfe;
             outline-offset: 1px;
@@ -96,12 +98,14 @@
             color: #166534;
             font-size: 0.875rem;
         }
-        .email-form {
+        .email-form,
+        .password-form {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
             border-top: 1px solid #e2e8f0;
         }
-        .email-form h2 {
+        .email-form h2,
+        .password-form h2 {
             margin: 0 0 0.375rem;
             font-size: 1rem;
         }
@@ -110,13 +114,15 @@
             color: #64748b;
             font-size: 0.875rem;
         }
-        .email-fields {
+        .email-fields,
+        .password-fields {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.75rem;
             margin-bottom: 0.75rem;
         }
-        .email-fields input { box-sizing: border-box; width: 100%; }
+        .email-fields input,
+        .password-fields input { box-sizing: border-box; width: 100%; }
         .role-badge {
             display: inline-block;
             background: #dbeafe;
@@ -217,7 +223,8 @@
             .form-controls {
                 flex-direction: column;
             }
-            .email-fields {
+            .email-fields,
+            .password-fields {
                 grid-template-columns: 1fr;
             }
         }
@@ -303,6 +310,42 @@
                         Cambiar correo
                     </button>
                 </div>
+            </form>
+
+            <form method="POST" action="{{ route('password.update') }}" class="profile-form password-form">
+                @csrf
+                @method('PUT')
+                <h2>Cambiar contraseña</h2>
+                <p id="password-change-help" class="form-help">Usá al menos 8 caracteres. Cerraremos tus otras sesiones, pero esta sesión seguirá abierta.</p>
+                <div class="password-fields">
+                    <div>
+                        <label for="password-current">Contraseña actual</label>
+                        <input id="password-current" name="current_password" type="password" autocomplete="current-password" required
+                            aria-describedby="password-change-help{{ $errors->updatePassword->has('current_password') ? ' password-current-error' : '' }}"
+                            @error('current_password', 'updatePassword') aria-invalid="true" @enderror>
+                        @error('current_password', 'updatePassword')
+                            <p id="password-current-error" class="field-error" role="alert">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="password-new">Nueva contraseña</label>
+                        <input id="password-new" name="password" type="password" autocomplete="new-password" minlength="8" required
+                            @error('password', 'updatePassword') aria-invalid="true" aria-describedby="password-new-error" @enderror>
+                        @error('password', 'updatePassword')
+                            <p id="password-new-error" class="field-error" role="alert">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="password-confirmation">Confirmar nueva contraseña</label>
+                        <input id="password-confirmation" name="password_confirmation" type="password" autocomplete="new-password" minlength="8" required>
+                    </div>
+                </div>
+                <div class="form-controls">
+                    <button type="submit">Cambiar contraseña</button>
+                </div>
+                @if (session('status') === 'password-updated')
+                    <p class="status-message" role="status" aria-live="polite">Contraseña actualizada. Tus otras sesiones fueron cerradas.</p>
+                @endif
             </form>
         </div>
     </div>

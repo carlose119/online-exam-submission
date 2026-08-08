@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class PasswordController extends Controller
 {
@@ -22,9 +25,17 @@ class PasswordController extends Controller
             'password' => ['required', Password::defaults(), 'confirmed'],
         ]);
 
+        if (Hash::check($validated['password'], $request->user()->getAuthPassword())) {
+            throw ValidationException::withMessages([
+                'password' => 'La nueva contraseña debe ser diferente de la actual.',
+            ])->errorBag('updatePassword');
+        }
+
         $request->user()->update([
             'password' => $validated['password'],
         ]);
+
+        Auth::logoutOtherDevices($validated['password']);
 
         return back()->with('status', 'password-updated');
     }

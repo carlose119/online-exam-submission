@@ -25,13 +25,15 @@ require __DIR__.'/auth.php';
 Route::get('/clase/unirse/{invitation_code}', [JoinClassController::class, 'show'])->name('class.join.show');
 
 // Explicit join action; the controller preserves the invitation GET across auth and verification.
-Route::post('/clase/unirse/{invitation_code}/join', [JoinClassController::class, 'join'])->name('class.join.action');
+Route::post('/clase/unirse/{invitation_code}/join', [JoinClassController::class, 'join'])
+    ->middleware('auth.session')
+    ->name('class.join.action');
 
 // Student dashboard (Livewire component, auth + role:STUDENT only)
-Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware(['auth', 'role:STUDENT', 'verified']);
+Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware(['auth', 'auth.session', 'role:STUDENT', 'verified']);
 
 // Verified student exam and meeting calendar routes.
-Route::middleware(['auth', 'role:STUDENT', 'verified'])->group(function () {
+Route::middleware(['auth', 'auth.session', 'role:STUDENT', 'verified'])->group(function () {
     Route::get('/examenes/{exam}/intentar', ExamStart::class)->name('student.exam.start');
     Route::get('/examenes/{attempt}/tomar', ExamTake::class)->name('student.exam.take')->middleware('checkTimer');
     Route::post('/examenes/{attempt}/responder/{question}', [ExamController::class, 'answer'])->name('student.exam.answer')->middleware('checkTimer');
@@ -45,10 +47,10 @@ Route::middleware(['auth', 'role:STUDENT', 'verified'])->group(function () {
 // Student profile (name editing and read-only enrollment summary)
 Route::get('/profile', StudentProfile::class)
     ->name('profile.show')
-    ->middleware(['auth', 'role:STUDENT', 'verified']);
+    ->middleware(['auth', 'auth.session', 'role:STUDENT', 'verified']);
 
 // Report download route (auth + role:admin,teacher only)
 Route::get('/admin/reports/download/{filename}', [ReportDownloadController::class, 'download'])
     ->name('reports.download')
     ->where('filename', '.*')
-    ->middleware(['auth', 'role:ADMIN,TEACHER']);
+    ->middleware(['auth', 'auth.session', 'role:ADMIN,TEACHER']);
