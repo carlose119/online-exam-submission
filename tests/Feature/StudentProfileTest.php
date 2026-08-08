@@ -215,7 +215,7 @@ it('shows empty state when no subscribed classes', function () {
 // Data Display — No deferred features present
 // ---------------------------------------------------------------------------
 
-it('does not show deferred password, history, deletion, or enrollment actions', function () {
+it('shows password change but not deferred history deletion or enrollment actions', function () {
     $student = User::factory()->create([
         'name' => 'Deferred Student',
         'email' => 'deferred@test.com',
@@ -228,8 +228,12 @@ it('does not show deferred password, history, deletion, or enrollment actions', 
 
     $response->assertStatus(200);
 
-    // Must NOT contain password-change or account-deletion UI
-    $response->assertDontSee('new_password');
+    $response->assertSee('Cambiar contraseña');
+    $response->assertSee('name="current_password"', false);
+    $response->assertSee('name="password_confirmation"', false);
+    $response->assertSee('Cerraremos tus otras sesiones, pero esta sesión seguirá abierta.');
+
+    // Must NOT contain account-deletion UI
     $response->assertDontSee('Eliminar cuenta');
     $response->assertDontSee('Unirse a esta clase', false);
 

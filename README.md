@@ -10,7 +10,7 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
 | Exams | Teachers build single- and multiple-choice exams; students receive one attempt with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
-| Student experience | Students register, join multiple classes, use a dashboard, update their profile name, take exams, and review scores. |
+| Student experience | Students register, join multiple classes, use a dashboard, update profile credentials, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
@@ -69,6 +69,7 @@ Install these project-supported tools before resolving dependencies:
    DB_PASSWORD=replace-with-a-local-password
 
    QUEUE_CONNECTION=database
+   SESSION_DRIVER=database
    MAIL_MAILER=log
    ```
 
@@ -141,6 +142,10 @@ Registration sends one verification email synchronously, authenticates the new `
 
 A verified student can change their email from `/profile` after confirming the current password. A successful change invalidates the existing verification immediately, sends one verification message to the normalized new address, and redirects to `/verify-email`; student capabilities remain blocked until that new address is verified. The change action is limited to six attempts per minute per student and IP address.
 
+A verified student can also change their password from `/profile` by entering the current password and a confirmed new password. The new value follows Laravel's default password policy (currently at least 8 characters), must differ from the current password, and is limited to six attempts per minute per student and IP address. A successful change keeps the submitting session authenticated and invalidates other sessions and persistent remember-me credentials through Laravel's authenticated-session mechanism.
+
+Session revocation requires Laravel's `auth.session` middleware and a session driver that persists independent browser sessions. This application applies that middleware to protected web routes and persists it across Livewire updates, so an already-mounted profile in an older session cannot mutate data after a password change. The application defaults to the `database` driver; keep the `sessions` migration deployed. Supported alternatives such as file or Redis sessions work through the same middleware. Do not replace this behavior with direct deletion from the `sessions` table, because that would couple revocation to one driver.
+
 With local `MAIL_MAILER=log`, Laravel writes the message and signed link to the application log instead of delivering to an inbox. Use the notice resend action after changing mail configuration. Registration and email-change verification remain synchronous, so they do not require a queue worker and signed URLs and hashes are never serialized into a failed queue job; production requests therefore surface SMTP failure directly and should use the operational controls above. Queue workers are still required for the asynchronous features described in the mail operations section.
 
 #### Legacy rollout
@@ -174,7 +179,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
-3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, change their email after entering the current password, and review read-only enrollment information. Changing email invalidates verification and requires following the new inbox link before student capabilities become available again.
+3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, change their email or password after entering the current password, and review read-only enrollment information. Changing email requires reverification. Changing password keeps the current browser signed in and signs out other sessions.
 4. After verifying the account, start an exam only after joining its class. Select one answer for single-choice questions or any applicable answers for multiple-choice questions. Advancing saves the current answer, and returning to a question restores the saved selection. The wizard submits through Livewire when available and falls back to the same protected POST answer route without JavaScript; submitting the last answer persists it, grades the attempt, and opens the result. Each student receives one attempt per exam; the server enforces the timer and exposes only that student's result.
 5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
@@ -207,7 +212,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **350 tests and 1,244 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **360 tests and 1,305 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
