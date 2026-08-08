@@ -135,24 +135,27 @@ class ExamTake extends Component
 
     public function saveAndPrevious()
     {
+        return $this->saveAndGoTo($this->currentIndex - 1);
+    }
+
+    public function saveAndGoTo(int $target)
+    {
         if ($this->finalizeIfExpired()) {
             return redirect()->route('student.exam.result', $this->attempt);
         }
 
         $question = $this->questions[$this->currentIndex] ?? null;
-        if (! $question || $this->currentIndex < 1) {
-            return redirect()->route('student.exam.take', $this->attempt);
+        if (! $question || $target < 0 || $target >= $this->questions->count()) {
+            throw ValidationException::withMessages([
+                'target' => 'The requested exam navigation target is invalid.',
+            ]);
         }
 
-        $selected = StudentAnswer::where('student_attempt_id', $this->attempt->id)
-            ->where('question_id', $question->id)
-            ->pluck('answer_option_id')
-            ->all();
-        app(AnswerSelectionWriter::class)->replace($this->attempt, $question, $selected);
+        $this->persistAnswer($question);
 
         return redirect()->route('student.exam.take', [
             'attempt' => $this->attempt,
-            'q' => $this->currentIndex - 1,
+            'q' => $target,
         ]);
     }
 
@@ -272,6 +275,10 @@ class ExamTake extends Component
 
         return view('livewire.student.exam.take', [
             'currentQuestion' => $currentQuestion,
+            'answeredQuestionIds' => StudentAnswer::where('student_attempt_id', $this->attempt->id)
+                ->distinct()
+                ->pluck('question_id')
+                ->all(),
             'totalQuestions' => $this->questions->count(),
             'currentIndex' => $this->currentIndex,
             'deadline' => $this->deadline(),
