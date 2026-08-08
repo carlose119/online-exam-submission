@@ -44,33 +44,35 @@
             font-size: 0.9375rem;
             margin: 0;
         }
-        .name-form {
+        .profile-form {
             margin-top: 1rem;
         }
-        .name-form label {
+        .profile-form label {
             display: block;
             margin-bottom: 0.375rem;
             font-size: 0.875rem;
             font-weight: 600;
         }
-        .name-controls {
+        .form-controls {
             display: flex;
             align-items: flex-start;
             gap: 0.625rem;
         }
-        .name-controls input {
+        .form-controls input,
+        .email-fields input {
             width: min(100%, 24rem);
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             padding: 0.5rem 0.75rem;
             font: inherit;
         }
-        .name-controls input:focus {
+        .form-controls input:focus,
+        .email-fields input:focus {
             border-color: #2563eb;
             outline: 2px solid #bfdbfe;
             outline-offset: 1px;
         }
-        .name-controls button {
+        .form-controls button {
             border: 0;
             border-radius: 6px;
             padding: 0.5625rem 0.875rem;
@@ -80,7 +82,7 @@
             cursor: pointer;
             white-space: nowrap;
         }
-        .name-controls button:disabled {
+        .form-controls button:disabled {
             cursor: wait;
             opacity: 0.7;
         }
@@ -94,6 +96,27 @@
             color: #166534;
             font-size: 0.875rem;
         }
+        .email-form {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+        .email-form h2 {
+            margin: 0 0 0.375rem;
+            font-size: 1rem;
+        }
+        .form-help {
+            margin: 0 0 0.875rem;
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+        .email-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .email-fields input { box-sizing: border-box; width: 100%; }
         .role-badge {
             display: inline-block;
             background: #dbeafe;
@@ -191,8 +214,11 @@
                 height: 56px;
                 font-size: 1.5rem;
             }
-            .name-controls {
+            .form-controls {
                 flex-direction: column;
+            }
+            .email-fields {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -213,9 +239,9 @@
             <p class="email">{{ $user->email }}</p>
             <span class="role-badge">{{ $user->role }}</span>
 
-            <form wire:submit="updateName" class="name-form">
+            <form wire:submit="updateName" class="profile-form">
                 <label for="profile-name">Nombre</label>
-                <div class="name-controls">
+                <div class="form-controls">
                     <input
                         id="profile-name"
                         type="text"
@@ -235,6 +261,48 @@
                 @if (session('status'))
                     <p class="status-message" role="status" aria-live="polite">{{ session('status') }}</p>
                 @endif
+            </form>
+
+            <form wire:submit="updateEmail" class="profile-form email-form">
+                <h2>Cambiar correo electrónico</h2>
+                <p id="email-change-help" class="form-help">Tendrás que verificar la nueva dirección antes de volver a usar las funciones para estudiantes.</p>
+                <div class="email-fields">
+                    <div>
+                        <label for="profile-email">Nuevo correo electrónico</label>
+                        <input
+                            id="profile-email"
+                            type="email"
+                            wire:model="email"
+                            maxlength="255"
+                            autocomplete="email"
+                            required
+                            aria-describedby="email-change-help{{ $errors->has('email') ? ' profile-email-error' : '' }}"
+                            @error('email') aria-invalid="true" @enderror
+                        >
+                        @error('email')
+                            <p id="profile-email-error" class="field-error" role="alert">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="profile-current-password">Contraseña actual</label>
+                        <input
+                            id="profile-current-password"
+                            type="password"
+                            wire:model="currentPassword"
+                            autocomplete="current-password"
+                            required
+                            @error('currentPassword') aria-invalid="true" aria-describedby="profile-current-password-error" @enderror
+                        >
+                        @error('currentPassword')
+                            <p id="profile-current-password-error" class="field-error" role="alert">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <div class="form-controls">
+                    <button type="submit" wire:loading.attr="disabled" wire:target="updateEmail">
+                        Cambiar correo
+                    </button>
+                </div>
             </form>
         </div>
     </div>

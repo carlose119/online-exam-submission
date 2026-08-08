@@ -139,7 +139,9 @@ Students create their own accounts at `/register` and verify them through the in
 
 Registration sends one verification email synchronously, authenticates the new `STUDENT`, and opens `/verify-email`. Unverified students can resend the link from that notice. Public class invitation pages remain available to everyone, but joining a class, opening `/dashboard` or `/profile`, taking an exam, viewing a result, and downloading an individual meeting calendar require a verified `STUDENT` account. An invitation carried through login or registration returns to that public page after verification; joining still requires a new explicit POST.
 
-With local `MAIL_MAILER=log`, Laravel writes the message and signed link to the application log instead of delivering to an inbox. Use the notice resend action after changing mail configuration. Verification remains synchronous so signed URLs and hashes are never serialized into a failed queue job; production requests therefore surface SMTP failure directly and should use the operational controls above.
+A verified student can change their email from `/profile` after confirming the current password. A successful change invalidates the existing verification immediately, sends one verification message to the normalized new address, and redirects to `/verify-email`; student capabilities remain blocked until that new address is verified. The change action is limited to six attempts per minute per student and IP address.
+
+With local `MAIL_MAILER=log`, Laravel writes the message and signed link to the application log instead of delivering to an inbox. Use the notice resend action after changing mail configuration. Registration and email-change verification remain synchronous, so they do not require a queue worker and signed URLs and hashes are never serialized into a failed queue job; production requests therefore surface SMTP failure directly and should use the operational controls above. Queue workers are still required for the asynchronous features described in the mail operations section.
 
 #### Legacy rollout
 
@@ -172,7 +174,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
-3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, and review read-only account and enrollment information. The name is required, must be text, and cannot exceed 255 characters.
+3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, change their email after entering the current password, and review read-only enrollment information. Changing email invalidates verification and requires following the new inbox link before student capabilities become available again.
 4. After verifying the account, start an exam only after joining its class. Each student receives one attempt per exam; the server enforces the timer, grades submission automatically, and exposes only that student's result.
 5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
@@ -205,7 +207,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **341 tests and 1,155 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **350 tests and 1,244 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
