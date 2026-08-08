@@ -13,6 +13,7 @@ use App\Services\ExamGradingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class ExamController extends Controller
 {
@@ -79,6 +80,17 @@ class ExamController extends Controller
             abort(404);
         }
 
+        $questions = $attempt->exam->questions()->orderBy('order')->get();
+        $currentIndex = $questions->search(fn (Question $q) => $q->id === $question->id);
+        $target = $request->query('target');
+        $targetIndex = filter_var($target, FILTER_VALIDATE_INT);
+
+        if ($request->query->has('target') && ($targetIndex === false || $targetIndex !== $currentIndex - 1 || $currentIndex < 1)) {
+            throw ValidationException::withMessages([
+                'target' => 'The requested exam navigation target is invalid.',
+            ]);
+        }
+
         $selectedOptions = $request->input('options', []);
 
         if (! is_array($selectedOptions)) {
@@ -87,9 +99,13 @@ class ExamController extends Controller
 
         $answerWriter->replace($attempt, $question, $selectedOptions);
 
-        // Compute the next question index.
-        $questions = $attempt->exam->questions()->orderBy('order')->get();
-        $currentIndex = $questions->search(fn (Question $q) => $q->id === $question->id);
+        if ($request->query->has('target')) {
+            return redirect()->route('student.exam.take', [
+                'attempt' => $attempt,
+                'q' => $targetIndex,
+            ]);
+        }
+
         $nextIndex = $currentIndex + 1;
 
         if ($nextIndex >= $questions->count()) {

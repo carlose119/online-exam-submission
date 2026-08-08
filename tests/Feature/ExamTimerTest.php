@@ -108,10 +108,7 @@ it('auto-submits and redirects to result when timer expires on answer', function
     ]);
 
     $response = $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $data['question'],
-        ]), [
+        ->post(signedExamAnswerUrl($attempt, $data['question']), [
             'options' => [1],
         ]);
 
@@ -160,10 +157,7 @@ it('allows and finalizes the last answer when timer has not expired', function (
     ]);
 
     $response = $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $data['question'],
-        ]), [
+        ->post(signedExamAnswerUrl($attempt, $data['question']), [
             'options' => [$data['question']->options()->where('is_correct', true)->first()->id],
         ]);
 

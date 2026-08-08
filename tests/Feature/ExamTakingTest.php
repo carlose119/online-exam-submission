@@ -218,10 +218,7 @@ it('saves answer and redirects back to take with next question', function () {
     $correctOption = $q1->options()->where('is_correct', true)->first();
 
     $response = $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $q1,
-        ]), ['options' => $correctOption->id]);
+        ->post(signedExamAnswerUrl($attempt, $q1), ['options' => $correctOption->id]);
 
     $response->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
     // Should have one answer row
@@ -249,10 +246,7 @@ it('re-answering a question replaces the previous selection', function () {
 
     // First answer: wrong
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $q1,
-        ]), ['options' => [$wrongOption->id]]);
+        ->post(signedExamAnswerUrl($attempt, $q1), ['options' => [$wrongOption->id]]);
 
     expect(StudentAnswer::where('student_attempt_id', $attempt->id)
         ->where('question_id', $q1->id)
@@ -261,10 +255,7 @@ it('re-answering a question replaces the previous selection', function () {
 
     // Re-answer: correct (replaces wrong)
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $q1,
-        ]), ['options' => [$correctOption->id]]);
+        ->post(signedExamAnswerUrl($attempt, $q1), ['options' => [$correctOption->id]]);
 
     expect(StudentAnswer::where('student_attempt_id', $attempt->id)
         ->where('question_id', $q1->id)
@@ -292,7 +283,7 @@ it('rejects direct answer replacement after finalization without changing attemp
     StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $question->id, 'answer_option_id' => $wrong->id]);
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $question]), ['options' => [$correct->id]])
+        ->post(signedExamAnswerUrl($attempt, $question), ['options' => [$correct->id]])
         ->assertSessionHasErrors('options');
 
     $attempt->refresh();
@@ -324,7 +315,7 @@ it('rejects a foreign option for SINGLE without replacing the previous answer', 
     StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $single->id, 'answer_option_id' => $previous->id]);
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => [$foreign->id]])
+        ->post(signedExamAnswerUrl($attempt, $single), ['options' => [$foreign->id]])
         ->assertSessionHasErrors('options.0');
 
     expect($attempt->answers()->where('question_id', $single->id)->pluck('answer_option_id')->all())->toBe([$previous->id]);
@@ -340,7 +331,7 @@ it('rejects a mixed foreign MULTIPLE selection atomically', function () {
     StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $multiple->id, 'answer_option_id' => $previous->id]);
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => [$valid->id, $foreign->id]])
+        ->post(signedExamAnswerUrl($attempt, $multiple), ['options' => [$valid->id, $foreign->id]])
         ->assertSessionHasErrors('options.1');
 
     expect($attempt->answers()->where('question_id', $multiple->id)->pluck('answer_option_id')->all())->toBe([$previous->id]);
@@ -352,7 +343,7 @@ it('rejects multiple distinct options for SINGLE', function () {
     $single = $data['questions'][0];
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => $single->options()->pluck('id')->all()])
+        ->post(signedExamAnswerUrl($attempt, $single), ['options' => $single->options()->pluck('id')->all()])
         ->assertSessionHasErrors('options');
 
     expect($attempt->answers()->count())->toBe(0);
@@ -388,10 +379,7 @@ it('denies answer for a question not belonging to the attempts exam', function (
     ]);
 
     $response = $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $otherQ,
-        ]), [
+        ->post(signedExamAnswerUrl($attempt, $otherQ, 0), [
             'options' => [1],
         ]);
 
@@ -512,10 +500,7 @@ it('denies answer for attempt belonging to another student', function () {
     $correctOption = $q1->options()->where('is_correct', true)->first();
 
     $response = $this->actingAs($other)
-        ->post(route('student.exam.answer', [
-            'attempt' => $attempt,
-            'question' => $q1,
-        ]), [
+        ->post(signedExamAnswerUrl($attempt, $q1), [
             'options' => [$correctOption->id],
         ]);
 
@@ -678,18 +663,119 @@ it('renders canonical Livewire submission with a POST fallback and input contrac
     $singleResponse = $this->actingAs($data['student'])->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 0]));
     $singleResponse->assertOk()
         ->assertSee('method="POST"', false)
-        ->assertSee('action="'.route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]).'"', false)
+        ->assertSee('action="'.e(signedExamAnswerUrl($attempt, $single)).'"', false)
         ->assertSee('wire:submit="saveAndNext"', false)
         ->assertSee('name="_token"', false)
         ->assertSee('name="options"', false)
-        ->assertSee("wire:model.change=\"singleSelections.{$single->id}\"", false)
+        ->assertSee("wire:change=\"autosaveSingle({$single->id}, ", false)
+        ->assertDontSee('name="target"', false)
         ->assertDontSee('wire:submit.prevent', false);
 
     $multipleResponse = $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
     $multipleResponse->assertOk()
         ->assertSee('wire:submit="finalize"', false)
         ->assertSee('name="options[]"', false)
-        ->assertSee("wire:model.change=\"multipleSelections.{$multiple->id}\"", false);
+        ->assertSee("wire:change=\"autosaveMultiple({$multiple->id}, ", false)
+        ->assertSee('formaction="'.e(signedExamAnswerUrl($attempt, $multiple, 0)).'"', false)
+        ->assertSee('wire:click.prevent="saveAndPrevious"', false);
+});
+
+it('autosaves each radio change and replaces the persisted selection', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    [$first, $last] = $single->options()->get()->all();
+
+    $component = Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt]);
+    $component->call('autosaveSingle', $single->id, $first->id);
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$first->id]);
+
+    $component->call('autosaveSingle', $single->id, $last->id)
+        ->assertSet("singleSelections.{$single->id}", (string) $last->id);
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$last->id]);
+});
+
+it('autosaves checkbox additions and removals exactly', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    [$first, $second] = $multiple->options()->get()->take(2)->all();
+
+    $component = Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set('currentIndex', 1)
+        ->call('autosaveMultiple', $multiple->id, $first->id, true)
+        ->call('autosaveMultiple', $multiple->id, $second->id, true)
+        ->call('autosaveMultiple', $multiple->id, $first->id, false)
+        ->assertSet("multipleSelections.{$multiple->id}", [(string) $second->id]);
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$second->id]);
+});
+
+it('queues autosave changes before Livewire previous navigation', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    [$first, $second] = $multiple->options()->get()->take(2)->all();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set('currentIndex', 1)
+        ->call('autosaveMultiple', $multiple->id, $first->id, true)
+        ->call('autosaveMultiple', $multiple->id, $second->id, true)
+        ->call('autosaveMultiple', $multiple->id, $first->id, false)
+        ->call('saveAndPrevious')
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 0]));
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$second->id])
+        ->and($attempt->fresh()->finished_at)->toBeNull();
+});
+
+it('saves the last question through the no-JavaScript previous POST without finalizing', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $multiple = $data['questions'][1];
+    $selectedIds = $multiple->options()->where('is_correct', true)->pluck('id')->all();
+
+    $this->actingAs($data['student'])
+        ->post(signedExamAnswerUrl($attempt, $multiple, 0), [
+            'options' => $selectedIds,
+        ])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 0]));
+
+    expect($attempt->answers()->orderBy('answer_option_id')->pluck('answer_option_id')->all())->toBe($selectedIds)
+        ->and($attempt->fresh()->finished_at)->toBeNull();
+});
+
+it('rejects tampered or expired signed answer actions without mutation', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $normal = signedExamAnswerUrl($attempt, $single);
+    $previous = signedExamAnswerUrl($attempt, $multiple, 0);
+
+    foreach ([
+        str_replace("/{$single->id}?", "/{$multiple->id}?", $normal),
+        str_replace('target=0', 'target=1', $previous),
+        preg_replace('/signature=[^&]+/', 'signature=invalid', $normal),
+        signedExamAnswerUrl($attempt, $single, expiresAt: now()->subSecond()),
+    ] as $url) {
+        $this->actingAs($data['student'])->post($url, ['options' => [$single->options()->firstOrFail()->id]])->assertForbidden();
+    }
+
+    expect($attempt->answers()->count())->toBe(0)->and($attempt->fresh()->finished_at)->toBeNull();
+});
+
+it('rejects autosave IDs outside the current question', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    $foreignOption = $multiple->options()->firstOrFail();
+
+    $component = Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt]);
+    $component->call('autosaveSingle', $single->id, $foreignOption->id)->assertHasErrors('options.0');
+    $component->call('autosaveMultiple', $multiple->id, $foreignOption->id, true)->assertHasErrors('options');
+
+    expect($attempt->answers()->count())->toBe(0);
 });
 
 it('persists and finalizes the last answer through POST without a client finish flag', function () {
@@ -699,11 +785,11 @@ it('persists and finalizes the last answer through POST without a client finish 
     $selectedIds = $multiple->options()->where('is_correct', true)->pluck('id')->all();
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedIds])
+        ->post(signedExamAnswerUrl($attempt, $multiple), ['options' => $selectedIds])
         ->assertRedirect(route('student.exam.result', $attempt));
 
     $finishedAttempt = $attempt->fresh();
-    $this->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedIds])
+    $this->post(signedExamAnswerUrl($attempt, $multiple), ['options' => $selectedIds])
         ->assertSessionHasErrors('options');
 
     expect($attempt->answers()->where('question_id', $multiple->id)->orderBy('answer_option_id')->pluck('answer_option_id')->all())->toBe($selectedIds)
@@ -717,7 +803,7 @@ it('does not let a client finish flag finalize an intermediate question', functi
     $single = $data['questions'][0];
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), [
+        ->post(signedExamAnswerUrl($attempt, $single), [
             'options' => (string) $single->options()->firstOrFail()->id,
             'finish' => '1',
         ])
@@ -763,7 +849,7 @@ it('restores a persisted single answer after navigating away and remounting', fu
     $singleId = $single->options()->firstOrFail()->id;
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $single]), ['options' => (string) $singleId])
+        ->post(signedExamAnswerUrl($attempt, $single), ['options' => (string) $singleId])
         ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
     $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]))->assertOk();
 
@@ -783,7 +869,7 @@ it('restores persisted multiple answers after navigating away and remounting', f
     Question::create(['exam_id' => $data['exam']->id, 'text' => 'Q3', 'type' => 'SINGLE', 'points' => 0, 'order' => 2]);
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', ['attempt' => $attempt, 'question' => $multiple]), ['options' => $selectedValues])
+        ->post(signedExamAnswerUrl($attempt, $multiple), ['options' => $selectedValues])
         ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]));
     $this->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]))->assertOk();
 
@@ -892,7 +978,7 @@ it('denies HTTP answer and submit mutations after subscription is revoked', func
     $data['student']->subscribedClasses()->detach($data['class']->id);
 
     $this->actingAs($data['student'])
-        ->post(route('student.exam.answer', compact('attempt', 'question')), ['options' => [$correct->id]])
+        ->post(signedExamAnswerUrl($attempt, $question), ['options' => [$correct->id]])
         ->assertForbidden();
     $this->post(route('student.exam.submit', $attempt))->assertForbidden();
 

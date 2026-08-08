@@ -54,7 +54,7 @@
             <p class="q-text">{{ $currentQuestion->text }}</p>
 
             <form method="POST"
-                  action="{{ route('student.exam.answer', ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
+                  action="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
                   wire:submit="{{ $isLast ? 'finalize' : 'saveAndNext' }}">
                 @csrf
                 @foreach ($currentQuestion->options as $option)
@@ -62,7 +62,9 @@
                         <input type="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'checkbox' : 'radio' }}"
                                name="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'options[]' : 'options' }}"
                                value="{{ $option->id }}"
-                               wire:model.change="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'multipleSelections' : 'singleSelections' }}.{{ $currentQuestion->id }}"
+                               wire:change="{{ $currentQuestion->type->value === 'MULTIPLE'
+                                   ? 'autosaveMultiple('.$currentQuestion->id.', '.$option->id.', $event.target.checked)'
+                                   : 'autosaveSingle('.$currentQuestion->id.', '.$option->id.')' }}"
                                @checked($currentQuestion->type->value === 'MULTIPLE'
                                    ? in_array((string) $option->id, $multipleSelections[$currentQuestion->id] ?? [], true)
                                    : ($singleSelections[$currentQuestion->id] ?? null) === (string) $option->id)
@@ -77,7 +79,10 @@
 
                 <div class="nav">
                     @if ($currentIndex > 0)
-                        <button type="button" class="btn-prev" wire:click="previousQuestion">Anterior</button>
+                        <button type="submit"
+                                formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $currentIndex - 1]) }}"
+                                class="btn-prev"
+                                wire:click.prevent="saveAndPrevious">Anterior</button>
                     @else
                         <span></span>
                     @endif
