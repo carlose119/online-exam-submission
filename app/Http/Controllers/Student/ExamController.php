@@ -85,7 +85,7 @@ class ExamController extends Controller
         $target = $request->query('target');
         $targetIndex = filter_var($target, FILTER_VALIDATE_INT);
 
-        if ($request->query->has('target') && ($targetIndex === false || $targetIndex !== $currentIndex - 1 || $currentIndex < 1)) {
+        if ($request->query->has('target') && ($targetIndex === false || $targetIndex < 0 || $targetIndex >= $questions->count())) {
             throw ValidationException::withMessages([
                 'target' => 'The requested exam navigation target is invalid.',
             ]);

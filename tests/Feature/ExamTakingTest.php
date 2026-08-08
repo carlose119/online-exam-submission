@@ -84,6 +84,14 @@ function seedExamTaking(): array
     return compact('teacher', 'class', 'exam', 'questions', 'student');
 }
 
+function addThirdExamQuestion(Exam $exam): Question
+{
+    $question = Question::create(['exam_id' => $exam->id, 'text' => 'Q3: Final question', 'type' => 'SINGLE', 'points' => 0, 'order' => 2]);
+    AnswerOption::create(['question_id' => $question->id, 'text' => 'Final answer', 'is_correct' => true]);
+
+    return $question;
+}
+
 // ---------------------------------------------------------------------------
 // Start: unauthenticated → redirect to login
 // ---------------------------------------------------------------------------
@@ -680,6 +688,111 @@ it('renders canonical Livewire submission with a POST fallback and input contrac
         ->assertSee('wire:click.prevent="saveAndPrevious"', false);
 });
 
+it('renders an accessible responsive question navigator from persisted answers', function () {
+    $data = seedExamTaking();
+    $third = addThirdExamQuestion($data['exam']);
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    [$single, $multiple] = $data['questions'];
+    StudentAnswer::create(['student_attempt_id' => $attempt->id, 'question_id' => $single->id, 'answer_option_id' => $single->options()->firstOrFail()->id]);
+
+    $response = $this->actingAs($data['student'])->get(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+    $html = $response->assertOk()
+        ->assertSee('aria-label="Navegador de preguntas"', false)
+        ->assertSee('aria-current="step"', false)
+        ->assertSee('Actual')
+        ->assertSee('Respondida')
+        ->assertSee('Sin respuesta')
+        ->assertSee('flex-wrap: wrap', false)
+        ->assertSee('min-width: 44px', false)
+        ->assertSee('wire:click.prevent="saveAndGoTo(2)"', false)
+        ->assertSee('formaction="'.e(signedExamAnswerUrl($attempt, $multiple, 2)).'"', false)
+        ->getContent();
+
+    expect($html)->toMatch('/<button[^>]+question-nav-answered[^>]*>.*?Pregunta 1.*?respondida.*?<\/button>/s')
+        ->toMatch('/<button[^>]+question-nav-current[^>]+aria-current="step"[^>]*>.*?Pregunta 2, actual.*?sin respuesta.*?<\/button>/s')
+        ->toMatch('/<button[^>]+question-nav-unanswered[^>]*>.*?Pregunta 3.*?sin respuesta.*?<\/button>/s');
+    expect($third->exists)->toBeTrue();
+});
+
+it('updates navigator answer state immediately after single and multiple autosave', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $multiple = $data['questions'][1];
+    $option = $multiple->options()->firstOrFail();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->call('autosaveSingle', $single->id, $single->options()->firstOrFail()->id)
+        ->assertSee('Pregunta 1, actual, respondida')
+        ->set('currentIndex', 1)
+        ->call('autosaveMultiple', $multiple->id, $option->id, true)
+        ->assertSee('Pregunta 2, actual, respondida')
+        ->call('autosaveMultiple', $multiple->id, $option->id, false)
+        ->assertSee('Pregunta 2, actual, sin respuesta');
+
+    expect($attempt->answers()->where('question_id', $single->id)->count())->toBe(1)
+        ->and($attempt->answers()->where('question_id', $multiple->id)->count())->toBe(0);
+});
+
+it('saves and jumps directly from question zero to question two with Livewire', function () {
+    $data = seedExamTaking();
+    addThirdExamQuestion($data['exam']);
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $selected = $single->options()->firstOrFail();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("singleSelections.{$single->id}", (string) $selected->id)
+        ->call('saveAndGoTo', 2)
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]));
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$selected->id]);
+});
+
+it('saves and jumps directly from question zero to question two with signed POST', function () {
+    $data = seedExamTaking();
+    addThirdExamQuestion($data['exam']);
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $selected = $single->options()->firstOrFail();
+
+    $this->actingAs($data['student'])
+        ->post(signedExamAnswerUrl($attempt, $single, 2), ['options' => $selected->id])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 2]));
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$selected->id]);
+});
+
+it('rejects out of range navigation targets without mutation', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $selected = $single->options()->firstOrFail();
+
+    Livewire::actingAs($data['student'])->test(ExamTake::class, ['attempt' => $attempt])
+        ->set("singleSelections.{$single->id}", (string) $selected->id)
+        ->call('saveAndGoTo', 2)
+        ->assertHasErrors('target');
+    $this->actingAs($data['student'])
+        ->post(signedExamAnswerUrl($attempt, $single, 2), ['options' => $selected->id])
+        ->assertSessionHasErrors('target');
+
+    expect($attempt->answers()->count())->toBe(0);
+});
+
+it('ignores an unsigned body target', function () {
+    $data = seedExamTaking();
+    $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
+    $single = $data['questions'][0];
+    $selected = $single->options()->firstOrFail();
+
+    $this->actingAs($data['student'])
+        ->post(signedExamAnswerUrl($attempt, $single), ['options' => $selected->id, 'target' => 0])
+        ->assertRedirect(route('student.exam.take', ['attempt' => $attempt, 'q' => 1]));
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$selected->id]);
+});
+
 it('autosaves each radio change and replaces the persisted selection', function () {
     $data = seedExamTaking();
     $attempt = StudentAttempt::create(['student_id' => $data['student']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
@@ -752,9 +865,11 @@ it('rejects tampered or expired signed answer actions without mutation', functio
     [$single, $multiple] = $data['questions'];
     $normal = signedExamAnswerUrl($attempt, $single);
     $previous = signedExamAnswerUrl($attempt, $multiple, 0);
+    $otherAttempt = StudentAttempt::create(['student_id' => $data['teacher']->id, 'exam_id' => $data['exam']->id, 'started_at' => now()]);
 
     foreach ([
         str_replace("/{$single->id}?", "/{$multiple->id}?", $normal),
+        str_replace("/{$attempt->id}/responder", "/{$otherAttempt->id}/responder", $normal),
         str_replace('target=0', 'target=1', $previous),
         preg_replace('/signature=[^&]+/', 'signature=invalid', $normal),
         signedExamAnswerUrl($attempt, $single, expiresAt: now()->subSecond()),

@@ -23,6 +23,17 @@
         .exam-take-container .timer .badge.warning { background: #fef3c7; color: #92400e; }
         .exam-take-container .timer .badge.danger { background: #fee2e2; color: #991b1b; }
         .exam-take-container .progress { color: #64748b; font-size: 0.875rem; text-align: center; margin-bottom: 1.5rem; }
+        .exam-take-container .question-nav { margin-bottom: 1.5rem; }
+        .exam-take-container .question-nav-list, .exam-take-container .question-legend { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+        .exam-take-container .question-nav-list { margin: 0; padding: 0; list-style: none; }
+        .exam-take-container .question-nav-button { min-width: 44px; min-height: 44px; border: 2px solid transparent; border-radius: 6px; font-weight: 700; cursor: pointer; }
+        .exam-take-container .question-nav-button:focus-visible { outline: 3px solid #0f172a; outline-offset: 2px; }
+        .exam-take-container .question-nav-current { background: #2563eb; color: #fff; border-color: #1e40af; }
+        .exam-take-container .question-nav-answered { background: #15803d; color: #fff; border-color: #14532d; }
+        .exam-take-container .question-nav-unanswered { background: #fef3c7; color: #78350f; border-color: #92400e; }
+        .exam-take-container .question-legend { margin-top: 0.75rem; color: #334155; font-size: 0.8125rem; }
+        .exam-take-container .legend-swatch { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: 0.25rem; border-radius: 3px; vertical-align: -0.1rem; }
+        .exam-take-container .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
         .exam-take-container .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; }
         .exam-take-container .card h2 { font-size: 1.125rem; margin: 0 0 1rem 0; }
         .exam-take-container .card .q-text { font-size: 1rem; margin-bottom: 1.5rem; }
@@ -57,6 +68,28 @@
                   action="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
                   wire:submit="{{ $isLast ? 'finalize' : 'saveAndNext' }}">
                 @csrf
+                <nav class="question-nav" aria-label="Navegador de preguntas">
+                    <ol class="question-nav-list">
+                        @foreach ($questions as $index => $question)
+                            @php($answered = in_array($question->id, $answeredQuestionIds, true))
+                            <li>
+                                <button type="submit"
+                                        class="question-nav-button {{ $index === $currentIndex ? 'question-nav-current' : ($answered ? 'question-nav-answered' : 'question-nav-unanswered') }}"
+                                        formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $index]) }}"
+                                        wire:click.prevent="saveAndGoTo({{ $index }})"
+                                        @if ($index === $currentIndex) aria-current="step" @endif>
+                                    <span aria-hidden="true">{{ $index + 1 }}</span>
+                                    <span class="sr-only">Pregunta {{ $index + 1 }}{{ $index === $currentIndex ? ', actual' : '' }}, {{ $answered ? 'respondida' : 'sin respuesta' }}</span>
+                                </button>
+                            </li>
+                        @endforeach
+                    </ol>
+                    <div class="question-legend" aria-label="Estados de las preguntas">
+                        <span><i class="legend-swatch question-nav-current"></i>Actual</span>
+                        <span><i class="legend-swatch question-nav-answered"></i>Respondida</span>
+                        <span><i class="legend-swatch question-nav-unanswered"></i>Sin respuesta</span>
+                    </div>
+                </nav>
                 @foreach ($currentQuestion->options as $option)
                     <label class="option">
                         <input type="{{ $currentQuestion->type->value === 'MULTIPLE' ? 'checkbox' : 'radio' }}"
