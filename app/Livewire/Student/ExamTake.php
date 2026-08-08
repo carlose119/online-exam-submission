@@ -11,6 +11,7 @@ use App\Services\ExamAccessGuard;
 use App\Services\ExamGradingService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -106,14 +107,53 @@ class ExamTake extends Component
         }
     }
 
-    /**
-     * Navigate to the previous question.
-     */
-    public function previousQuestion(): void
+    public function autosaveSingle(int $questionId, int $optionId): void
     {
-        if ($this->currentIndex > 0) {
-            $this->currentIndex--;
+        if ($this->finalizeIfExpired()) {
+            $this->redirect(route('student.exam.result', $this->attempt), navigate: false);
+
+            return;
         }
+
+        $question = $this->currentQuestion($questionId, QuestionType::Single);
+        $selected = app(AnswerSelectionWriter::class)->updateOption($this->attempt, $question, $optionId, true);
+        $this->singleSelections[$question->id] = $selected[0];
+    }
+
+    public function autosaveMultiple(int $questionId, int $optionId, bool $selected): void
+    {
+        if ($this->finalizeIfExpired()) {
+            $this->redirect(route('student.exam.result', $this->attempt), navigate: false);
+
+            return;
+        }
+
+        $question = $this->currentQuestion($questionId, QuestionType::Multiple);
+        $this->multipleSelections[$question->id] = app(AnswerSelectionWriter::class)
+            ->updateOption($this->attempt, $question, $optionId, $selected);
+    }
+
+    public function saveAndPrevious()
+    {
+        if ($this->finalizeIfExpired()) {
+            return redirect()->route('student.exam.result', $this->attempt);
+        }
+
+        $question = $this->questions[$this->currentIndex] ?? null;
+        if (! $question || $this->currentIndex < 1) {
+            return redirect()->route('student.exam.take', $this->attempt);
+        }
+
+        $selected = StudentAnswer::where('student_attempt_id', $this->attempt->id)
+            ->where('question_id', $question->id)
+            ->pluck('answer_option_id')
+            ->all();
+        app(AnswerSelectionWriter::class)->replace($this->attempt, $question, $selected);
+
+        return redirect()->route('student.exam.take', [
+            'attempt' => $this->attempt,
+            'q' => $this->currentIndex - 1,
+        ]);
     }
 
     /**
@@ -154,6 +194,19 @@ class ExamTake extends Component
         }
 
         app(AnswerSelectionWriter::class)->replace($this->attempt, $question, $selected);
+    }
+
+    private function currentQuestion(int $questionId, QuestionType $type): Question
+    {
+        $question = $this->questions[$this->currentIndex] ?? null;
+
+        if (! $question || $question->id !== $questionId || $question->type !== $type) {
+            throw ValidationException::withMessages([
+                'options' => 'The option change does not belong to the current question.',
+            ]);
+        }
+
+        return $question;
     }
 
     /**

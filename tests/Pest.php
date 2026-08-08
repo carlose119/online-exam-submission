@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 /*
@@ -49,7 +50,12 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+function signedExamAnswerUrl($attempt, $question, ?int $target = null, $expiresAt = null): string
 {
-    // ..
+    $parameters = ['attempt' => $attempt, 'question' => $question];
+    if ($target !== null) {
+        $parameters['target'] = $target;
+    }
+
+    return URL::temporarySignedRoute('student.exam.answer', $expiresAt ?? $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), $parameters);
 }

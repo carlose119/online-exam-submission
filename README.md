@@ -180,7 +180,7 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
 3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, change their email or password after entering the current password, and review read-only enrollment information. Changing email requires reverification. Changing password keeps the current browser signed in and signs out other sessions.
-4. After verifying the account, start an exam only after joining its class. Select one answer for single-choice questions or any applicable answers for multiple-choice questions. Advancing saves the current answer, and returning to a question restores the saved selection. The wizard submits through Livewire when available and falls back to the same protected POST answer route without JavaScript; submitting the last answer persists it, grades the attempt, and opens the result. Each student receives one attempt per exam; the server enforces the timer and exposes only that student's result.
+4. After verifying the account, start an exam only after joining its class. Select one answer for single-choice questions or any applicable answers for multiple-choice questions. With Livewire, every selection and deselection is saved asynchronously; every Previous, Next, or Finish action also saves before navigating, and returning to a question restores the saved selection. Without JavaScript, navigation submits through the same protected POST answer route; submitting the last answer with Finish persists it, grades the attempt, and opens the result, while Previous never finalizes. Each student receives one attempt per exam; the server enforces the timer and exposes only that student's result.
 5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
 ### Material uploads
@@ -212,7 +212,7 @@ vendor/bin/pint --test
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **367 tests and 1,346 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **373 tests and 1,375 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
@@ -287,6 +287,7 @@ The application uses one `User` model with role-based boundaries. Students use t
 - Reports with at least `REPORTS_SYNC_THRESHOLD` attempts, 100 by default, are queued. Keep a queue worker running in environments that generate larger reports; `composer run dev` starts one locally.
 - Uploaded public materials require `php artisan storage:link`. Server upload limits must accommodate the application's maximum material size.
 - The single-meeting `.ics` endpoint requires an authenticated student subscribed to the meeting's class. The aggregate feed is public only through its opaque token.
+- Exam fallback forms use temporary signed URLs. Keep `APP_KEY` stable and configure the canonical application URL and trusted proxies consistently, because key rotation or host changes invalidate forms already open in a browser.
 
 ## Troubleshooting
 
