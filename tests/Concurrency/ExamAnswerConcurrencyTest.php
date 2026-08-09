@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AnswerSelectionWriter;
 use App\Services\ExamGradingService;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\ExamConcurrencyHarness;
 
 function concurrencyFixture(): array
 {
@@ -29,105 +30,6 @@ function concurrencyFixture(): array
     $attempt = StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'started_at' => now()]);
 
     return compact('question', 'incorrect', 'correct', 'attempt');
-}
-
-function startConcurrencyWorker(string $operation, int ...$ids): array
-{
-    $ipcPath = tempnam(sys_get_temp_dir(), 'exam-concurrency-');
-    if ($ipcPath === false) {
-        throw new RuntimeException('Unable to create worker IPC file.');
-    }
-    $command = [PHP_BINARY, base_path('tests/Support/ExamConcurrencyWorker.php'), $operation, $ipcPath, ...array_map('strval', $ids)];
-    $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, base_path());
-    if (! is_resource($process)) {
-        @unlink($ipcPath);
-
-        throw new RuntimeException('Unable to start concurrency worker.');
-    }
-    fclose($pipes[0]);
-
-    return ['process' => $process, 'pipes' => $pipes, 'ipc_path' => $ipcPath, 'ipc_offset' => 0, 'buffer' => ''];
-}
-
-function workerMessage(array &$worker, float $timeout = 10): array
-{
-    $deadline = microtime(true) + $timeout;
-    do {
-        $contents = @file_get_contents($worker['ipc_path']);
-        if ($contents === false) {
-            usleep(20_000);
-
-            continue;
-        }
-        $worker['buffer'] .= substr($contents, $worker['ipc_offset']);
-        $worker['ipc_offset'] = strlen($contents);
-        if (($newline = strpos($worker['buffer'], "\n")) !== false) {
-            $line = substr($worker['buffer'], 0, $newline);
-            $worker['buffer'] = substr($worker['buffer'], $newline + 1);
-
-            return json_decode($line, true, flags: JSON_THROW_ON_ERROR);
-        }
-        usleep(20_000);
-    } while (microtime(true) < $deadline);
-
-    throw new RuntimeException('Worker message deadline exceeded.');
-}
-
-function observeWorkerLockWait(array &$worker, int $workerConnectionId): array
-{
-    $config = config('database.connections.mysql');
-    $monitor = new PDO(
-        "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']}",
-        $config['username'],
-        $config['password'],
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
-    );
-    $deadline = microtime(true) + 10;
-    do {
-        if (! proc_get_status($worker['process'])['running']) {
-            throw new RuntimeException(
-                "Worker connection {$workerConnectionId} exited before waiting: ".json_encode(workerMessage($worker, 1)),
-            );
-        }
-        $process = $monitor->query(
-            "SELECT INFO FROM information_schema.PROCESSLIST WHERE ID = {$workerConnectionId}",
-        )->fetch(PDO::FETCH_ASSOC);
-        if (str_contains(strtolower($process['INFO'] ?? ''), 'for update')) {
-            $transaction = $monitor->query(
-                "SELECT trx_id, trx_state FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {$workerConnectionId}",
-            )->fetch(PDO::FETCH_ASSOC);
-            if (($transaction['trx_state'] ?? null) === 'LOCK WAIT') {
-                $statement = $monitor->query(
-                    "SELECT requesting_trx_id, blocking_trx_id FROM information_schema.INNODB_LOCK_WAITS WHERE requesting_trx_id = {$transaction['trx_id']}",
-                );
-                $wait = $statement->fetch(PDO::FETCH_ASSOC);
-                if ($wait !== false) {
-                    return $wait + ['waiting_connection_id' => $workerConnectionId];
-                }
-            }
-        }
-        usleep(100_000);
-    } while (microtime(true) < $deadline);
-
-    throw new RuntimeException("MariaDB lock-wait evidence missing for connection {$workerConnectionId}.");
-}
-
-function stopConcurrencyWorker(?array &$worker): void
-{
-    if ($worker === null) {
-        return;
-    }
-    foreach ($worker['pipes'] as $pipe) {
-        if (is_resource($pipe)) {
-            fclose($pipe);
-        }
-    }
-    if (is_resource($worker['process'])) {
-        proc_terminate($worker['process']);
-        proc_close($worker['process']);
-    }
-    @unlink($worker['ipc_path']);
-    $worker = null;
 }
 
 beforeEach(function () {
@@ -150,22 +52,22 @@ it('grades the replacement committed by the lock holder', function () {
         $parentTransactionId = (int) DB::scalar(
             "SELECT trx_id FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {$parentConnectionId}",
         );
-        $worker = startConcurrencyWorker('grade', $data['attempt']->id);
-        $ready = workerMessage($worker);
+        $worker = ExamConcurrencyHarness::start('grade', $data['attempt']->id);
+        $ready = ExamConcurrencyHarness::message($worker);
         expect($ready)->toMatchArray([
             'event' => 'ready', 'database' => 'online_exam_submission_concurrency',
         ]);
-        $wait = observeWorkerLockWait($worker, $ready['connection_id']);
+        $wait = ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
         expect((int) $wait['waiting_connection_id'])->toBe($ready['connection_id'])
             ->and((int) $wait['blocking_trx_id'])->toBe($parentTransactionId);
         DB::commit();
-        $result = workerMessage($worker);
+        $result = ExamConcurrencyHarness::message($worker);
         expect($result)->toMatchArray(['event' => 'result', 'status' => 'graded', 'score' => 5]);
     } finally {
         if (DB::transactionLevel() > 0) {
             DB::rollBack();
         }
-        stopConcurrencyWorker($worker);
+        ExamConcurrencyHarness::stop($worker);
     }
 
     expect($data['attempt']->fresh()->score_obtained)->toBe('5.00')
@@ -188,23 +90,23 @@ it('rejects replacement after grading commits without changing answers', functio
         $parentTransactionId = (int) DB::scalar(
             "SELECT trx_id FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {$parentConnectionId}",
         );
-        $worker = startConcurrencyWorker('replace', $data['attempt']->id, $data['question']->id, $data['incorrect']->id);
-        $ready = workerMessage($worker);
+        $worker = ExamConcurrencyHarness::start('replace', $data['attempt']->id, $data['question']->id, $data['incorrect']->id);
+        $ready = ExamConcurrencyHarness::message($worker);
         expect($ready)->toMatchArray([
             'event' => 'ready', 'database' => 'online_exam_submission_concurrency',
         ]);
-        $wait = observeWorkerLockWait($worker, $ready['connection_id']);
+        $wait = ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
         expect((int) $wait['waiting_connection_id'])->toBe($ready['connection_id'])
             ->and((int) $wait['blocking_trx_id'])->toBe($parentTransactionId);
         DB::commit();
-        $result = workerMessage($worker);
+        $result = ExamConcurrencyHarness::message($worker);
         expect($result['status'])->toBe('validation_exception')
             ->and($result['errors']['options'])->toContain('Answers cannot be changed after the exam attempt is finished.');
     } finally {
         if (DB::transactionLevel() > 0) {
             DB::rollBack();
         }
-        stopConcurrencyWorker($worker);
+        ExamConcurrencyHarness::stop($worker);
     }
 
     expect($data['attempt']->fresh()->score_obtained)->toBe('5.00')

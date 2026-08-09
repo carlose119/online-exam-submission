@@ -1,12 +1,17 @@
 <?php
 
+use App\Models\Exam;
 use App\Models\Question;
 use App\Models\StudentAttempt;
+use App\Models\User;
 use App\Services\AnswerSelectionWriter;
+use App\Services\ExamAllowanceService;
+use App\Services\ExamAttemptCreator;
 use App\Services\ExamGradingService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -31,20 +36,35 @@ try {
     ]);
 
     $operation = $argv[1] ?? null;
-    $attempt = StudentAttempt::query()->findOrFail((int) ($argv[3] ?? 0));
 
     if ($operation === 'grade') {
+        $attempt = StudentAttempt::query()->findOrFail((int) ($argv[3] ?? 0));
         $score = app(ExamGradingService::class)->gradeAttempt($attempt);
         $write(['event' => 'result', 'status' => 'graded', 'score' => $score]);
     } elseif ($operation === 'replace') {
+        $attempt = StudentAttempt::query()->findOrFail((int) ($argv[3] ?? 0));
         $question = Question::query()->findOrFail((int) ($argv[4] ?? 0));
         app(AnswerSelectionWriter::class)->replace($attempt, $question, [(int) ($argv[5] ?? 0)]);
         $write(['event' => 'result', 'status' => 'replaced']);
+    } elseif ($operation === 'start') {
+        $exam = Exam::query()->findOrFail((int) ($argv[3] ?? 0));
+        $attempt = app(ExamAttemptCreator::class)->create($exam, (int) ($argv[4] ?? 0));
+        $write([
+            'event' => 'result', 'status' => 'started',
+            'attempt_id' => $attempt->id, 'attempt_number' => $attempt->attempt_number,
+        ]);
+    } elseif ($operation === 'allowance') {
+        $exam = Exam::query()->findOrFail((int) ($argv[3] ?? 0));
+        $student = User::query()->findOrFail((int) ($argv[4] ?? 0));
+        $allowance = app(ExamAllowanceService::class)->save($exam, $student, (int) ($argv[5] ?? 0), 0);
+        $write(['event' => 'result', 'status' => 'allowance_saved', 'additional_attempts' => $allowance->additional_attempts]);
     } else {
         throw new InvalidArgumentException('Unknown concurrency worker operation.');
     }
 } catch (ValidationException $exception) {
     $write(['event' => 'result', 'status' => 'validation_exception', 'errors' => $exception->errors()]);
+} catch (HttpExceptionInterface $exception) {
+    $write(['event' => 'result', 'status' => 'http_exception', 'code' => $exception->getStatusCode()]);
 } catch (Throwable $exception) {
     $write(['event' => 'result', 'status' => 'error', 'message' => $exception->getMessage()]);
     exit(1);
