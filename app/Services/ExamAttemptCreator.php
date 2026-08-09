@@ -4,20 +4,40 @@ namespace App\Services;
 
 use App\Models\Exam;
 use App\Models\StudentAttempt;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
-class ExamAttemptCreator
+final class ExamAttemptCreator
 {
+    public function __construct(private ExamAllowanceService $allowanceService) {}
+
     public function create(Exam $exam, int $studentId): StudentAttempt
     {
-        $attempt = StudentAttempt::query()->createOrFirst(
-            ['student_id' => $studentId, 'exam_id' => $exam->id],
-            ['started_at' => now()],
-        );
+        return DB::transaction(function () use ($exam, $studentId): StudentAttempt {
+            $student = User::query()->lockForUpdate()->findOrFail($studentId);
+            $attempts = StudentAttempt::query()
+                ->whereBelongsTo($student, 'student')
+                ->whereBelongsTo($exam)
+                ->get(['finished_at']);
 
-        if (! $attempt->wasRecentlyCreated) {
-            abort(403, 'You have already taken this exam.');
-        }
+            if ($attempts->contains(fn (StudentAttempt $attempt) => $attempt->finished_at === null)) {
+                abort(403, 'You have already taken this exam.');
+            }
 
-        return $attempt;
+            $limits = $this->allowanceService->limitsFor($exam, $student);
+            $attemptNumber = $attempts->count() + 1;
+
+            if ($attemptNumber > $limits->totalAttempts) {
+                abort(403, 'You have already taken this exam.');
+            }
+
+            return StudentAttempt::query()->create([
+                'student_id' => $student->id,
+                'exam_id' => $exam->id,
+                'attempt_number' => $attemptNumber,
+                'allowed_duration_minutes' => $limits->durationMinutes,
+                'started_at' => now(),
+            ]);
+        });
     }
 }

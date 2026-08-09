@@ -110,22 +110,30 @@ it('has correct relationships with student, exam, and answers', function () {
 });
 
 // ---------------------------------------------------------------------------
-// UNIQUE constraint: (student_id, exam_id)
+// UNIQUE constraint: (student_id, exam_id, attempt_number)
 // ---------------------------------------------------------------------------
 
-it('prevents duplicate attempts for the same student and exam', function () {
+it('allows ordered retakes and prevents a duplicate attempt number', function () {
     $data = seedAttemptTest();
 
     StudentAttempt::create([
         'student_id' => $data['student']->id,
         'exam_id' => $data['exam']->id,
+        'attempt_number' => 1,
         'started_at' => now(),
     ]);
 
-    // Creating a duplicate should throw.
     StudentAttempt::create([
         'student_id' => $data['student']->id,
         'exam_id' => $data['exam']->id,
+        'attempt_number' => 2,
+        'started_at' => now(),
+    ]);
+
+    StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'attempt_number' => 2,
         'started_at' => now(),
     ]);
 })->throws(QueryException::class);
