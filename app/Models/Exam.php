@@ -44,4 +44,12 @@ class Exam extends Model
     {
         return $this->hasMany(StudentAttempt::class, 'exam_id');
     }
+
+    /**
+     * Student-specific attempt and time additions for this exam.
+     */
+    public function allowances(): HasMany
+    {
+        return $this->hasMany(ExamAllowance::class);
+    }
 }

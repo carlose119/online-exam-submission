@@ -107,4 +107,12 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(StudentAttempt::class, 'student_id');
     }
+
+    /**
+     * Exam attempt and time additions granted to this student.
+     */
+    public function examAllowances(): HasMany
+    {
+        return $this->hasMany(ExamAllowance::class, 'student_id');
+    }
 }
