@@ -5,6 +5,7 @@ namespace App\Livewire\Student;
 use App\Models\Exam;
 use App\Models\StudentAttempt;
 use App\Services\ExamAccessGuard;
+use App\Services\ExamAllowanceService;
 use App\Services\ExamAttemptCreator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -22,8 +23,10 @@ class ExamStart extends Component
 
         app(ExamAccessGuard::class)->ensureSubscribed($this->exam, Auth::id());
 
-        // Guard: student must not have an existing attempt.
-        if (StudentAttempt::where('student_id', Auth::id())->where('exam_id', $this->exam->id)->exists()) {
+        $attempts = StudentAttempt::where('student_id', Auth::id())->where('exam_id', $this->exam->id);
+
+        if ((clone $attempts)->whereNull('finished_at')->exists()
+            || $attempts->count() >= app(ExamAllowanceService::class)->limitsFor($this->exam, Auth::user())->totalAttempts) {
             abort(403, 'You have already taken this exam.');
         }
     }

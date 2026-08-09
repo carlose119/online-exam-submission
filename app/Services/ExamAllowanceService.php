@@ -6,7 +6,9 @@ use App\Domain\Exams\EffectiveExamLimitResolver;
 use App\Domain\Exams\EffectiveExamLimits;
 use App\Models\Exam;
 use App\Models\ExamAllowance;
+use App\Models\StudentAttempt;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 final class ExamAllowanceService
@@ -35,15 +37,30 @@ final class ExamAllowanceService
             ]);
         }
 
-        if (! $exam->classroom()->whereHas('students', fn ($query) => $query->whereKey($student->id))->exists()) {
-            throw ValidationException::withMessages([
-                'student_id' => 'The student must be enrolled in the exam class.',
-            ]);
-        }
+        return DB::transaction(function () use ($exam, $student, $additionalAttempts, $extraTimeMinutes): ExamAllowance {
+            $student = User::query()->lockForUpdate()->findOrFail($student->id);
 
-        return ExamAllowance::query()->updateOrCreate(
-            ['exam_id' => $exam->id, 'student_id' => $student->id],
-            ['additional_attempts' => $additionalAttempts, 'extra_time_minutes' => $extraTimeMinutes],
-        );
+            if (! $exam->classroom()->whereHas('students', fn ($query) => $query->whereKey($student->id))->exists()) {
+                throw ValidationException::withMessages([
+                    'student_id' => 'The student must be enrolled in the exam class.',
+                ]);
+            }
+
+            $consumedAdditionalAttempts = max(0, StudentAttempt::query()
+                ->whereBelongsTo($student, 'student')
+                ->whereBelongsTo($exam)
+                ->count() - 1);
+
+            if ($additionalAttempts < $consumedAdditionalAttempts) {
+                throw ValidationException::withMessages([
+                    'additional_attempts' => 'Additional attempts cannot be lower than the number already consumed.',
+                ]);
+            }
+
+            return ExamAllowance::query()->updateOrCreate(
+                ['exam_id' => $exam->id, 'student_id' => $student->id],
+                ['additional_attempts' => $additionalAttempts, 'extra_time_minutes' => $extraTimeMinutes],
+            );
+        });
     }
 }
