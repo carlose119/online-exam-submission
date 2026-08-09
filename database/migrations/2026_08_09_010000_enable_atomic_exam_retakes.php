@@ -10,8 +10,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('student_attempts', function (Blueprint $table) {
-            $table->dropUnique(['student_id', 'exam_id']);
             $table->unique(['student_id', 'exam_id', 'attempt_number']);
+            $table->dropUnique(['student_id', 'exam_id']);
         });
     }
 
@@ -28,8 +28,8 @@ return new class extends Migration
         }
 
         Schema::table('student_attempts', function (Blueprint $table) {
-            $table->dropUnique(['student_id', 'exam_id', 'attempt_number']);
             $table->unique(['student_id', 'exam_id']);
+            $table->dropUnique(['student_id', 'exam_id', 'attempt_number']);
         });
     }
 };
