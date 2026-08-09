@@ -259,7 +259,7 @@ vendor/bin/pest --configuration=phpunit.concurrency.xml
 
 This command is configured to use `online_exam_submission_concurrency`. Create that database and supply the local `DB_HOST`, `DB_PORT`, `DB_USERNAME`, and `DB_PASSWORD` environment values before running it.
 
-**Use only a disposable database. Never point this suite at the normal development, staging, or production database.** The suite applies and rolls back migrations, must not run in parallel against one database, and may require the MariaDB user to read InnoDB transaction/lock metadata. CI provides an ephemeral MariaDB service for this job.
+**Use only a disposable database. Never point this suite at the normal development, staging, or production database.** The suite migrates the database once and truncates application tables between tests, must not run in parallel against one database, and may require the MariaDB user to read InnoDB transaction/lock metadata. CI provides an ephemeral MariaDB service for this job.
 
 ## Architecture Map
 
