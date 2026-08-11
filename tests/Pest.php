@@ -57,5 +57,5 @@ function signedExamAnswerUrl($attempt, $question, ?int $target = null, $expiresA
         $parameters['target'] = $target;
     }
 
-    return URL::temporarySignedRoute('student.exam.answer', $expiresAt ?? $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), $parameters);
+    return URL::temporarySignedRoute('student.exam.answer', $expiresAt ?? $attempt->deadline()->addMinutes(10), $parameters);
 }

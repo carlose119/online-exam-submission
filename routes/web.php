@@ -37,7 +37,7 @@ Route::middleware(['auth', 'auth.session', 'role:STUDENT', 'verified'])->group(f
     Route::get('/examenes/{exam}/intentar', ExamStart::class)->name('student.exam.start');
     Route::get('/examenes/{attempt}/tomar', ExamTake::class)->name('student.exam.take')->middleware('checkTimer');
     Route::post('/examenes/{attempt}/responder/{question}', [ExamController::class, 'answer'])->name('student.exam.answer')->middleware(['signed', 'checkTimer']);
-    Route::post('/examenes/{attempt}/finalizar', [ExamController::class, 'submit'])->name('student.exam.submit');
+    Route::post('/examenes/{attempt}/finalizar', [ExamController::class, 'submit'])->name('student.exam.submit')->middleware('checkTimer');
     Route::get('/examenes/{attempt}/resultado', ExamResult::class)->name('student.exam.result');
 
     Route::get('/meetings/{meeting}/ics', [IcalExportController::class, 'export'])

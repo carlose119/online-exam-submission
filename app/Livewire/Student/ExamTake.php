@@ -237,9 +237,7 @@ class ExamTake extends Component
     {
         app(ExamAccessGuard::class)->ensureCanTake($this->attempt->fresh(), Auth::id());
 
-        $deadline = $this->attempt->started_at->addMinutes($this->attempt->exam->duration_minutes);
-
-        if (! now()->greaterThan($deadline)) {
+        if (! $this->attempt->isExpired()) {
             return false;
         }
 
@@ -257,9 +255,7 @@ class ExamTake extends Component
      */
     public function deadline(): string
     {
-        return $this->attempt->started_at
-            ->addMinutes($this->attempt->exam->duration_minutes)
-            ->toIso8601String();
+        return $this->attempt->deadline()->toIso8601String();
     }
 
     public function render(): View
