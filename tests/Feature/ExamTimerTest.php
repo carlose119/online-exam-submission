@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Student\ExamController;
 use App\Livewire\Student\ExamTake;
 use App\Models\AnswerOption;
 use App\Models\Exam;
@@ -8,6 +9,8 @@ use App\Models\SchoolClass;
 use App\Models\StudentAnswer;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use App\Services\ExamAllowanceService;
+use App\Services\ExamAttemptCreator;
 use Livewire\Livewire;
 
 // ---------------------------------------------------------------------------
@@ -166,6 +169,107 @@ it('allows and finalizes the last answer when timer has not expired', function (
 
     $attempt->refresh();
     expect($attempt->finished_at)->not->toBeNull();
+});
+
+it('snapshots accommodated time and keeps the deadline after revocation', function () {
+    $data = seedTimerTest(30);
+    $allowances = app(ExamAllowanceService::class);
+    $allowances->save($data['exam'], $data['student'], 0, 15);
+    $attempt = app(ExamAttemptCreator::class)->create($data['exam'], $data['student']->id);
+    $deadline = $attempt->started_at->copy()->addMinutes(45);
+
+    $allowances->save($data['exam'], $data['student'], 0, 0);
+    $this->travel(31)->minutes();
+
+    $response = $this->actingAs($data['student'])->get(route('student.exam.take', $attempt));
+    $response->assertOk()
+        ->assertSee($deadline->toIso8601String(), false)
+        ->assertSee((string) $deadline->copy()->addMinutes(10)->timestamp, false);
+    expect($attempt->fresh()->allowed_duration_minutes)->toBe(45)
+        ->and($attempt->deadline()->equalTo($deadline))->toBeTrue()
+        ->and($attempt->finished_at)->toBeNull();
+});
+
+it('does not extend an active deadline after allowance and exam duration increases', function () {
+    $data = seedTimerTest(30);
+    $attempt = app(ExamAttemptCreator::class)->create($data['exam'], $data['student']->id);
+    $deadline = $attempt->deadline();
+
+    app(ExamAllowanceService::class)->save($data['exam'], $data['student'], 0, 30);
+    $data['exam']->update(['duration_minutes' => 90]);
+    $this->travel(31)->minutes();
+
+    $this->actingAs($data['student'])
+        ->get(route('student.exam.take', $attempt))
+        ->assertRedirect(route('student.exam.result', $attempt));
+    $attempt->refresh();
+    expect($attempt->allowed_duration_minutes)->toBe(30)
+        ->and($attempt->deadline()->equalTo($deadline))->toBeTrue()
+        ->and($attempt->finished_at)->not->toBeNull();
+});
+
+it('backfills a legacy active deadline without destructive rollback', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'allowed_duration_minutes' => null,
+        'started_at' => now(),
+    ]);
+    $migration = require database_path('migrations/2026_08_10_000000_snapshot_legacy_active_attempt_durations.php');
+
+    $migration->up();
+    $migration->down();
+    $data['exam']->update(['duration_minutes' => 90]);
+
+    $attempt->refresh();
+    expect($attempt->allowed_duration_minutes)->toBe(30)
+        ->and($attempt->deadline()->equalTo($attempt->started_at->copy()->addMinutes(30)))->toBeTrue();
+});
+
+it('enforces the snapshotted deadline on explicit submit', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'allowed_duration_minutes' => 15,
+        'started_at' => now()->subMinutes(16),
+    ]);
+    StudentAnswer::create([
+        'student_attempt_id' => $attempt->id,
+        'question_id' => $data['question']->id,
+        'answer_option_id' => $data['question']->options()->where('is_correct', true)->value('id'),
+    ]);
+    $this->mock(ExamController::class, function ($controller): void {
+        $controller->shouldNotReceive('submit');
+    });
+
+    $this->actingAs($data['student'])
+        ->post(route('student.exam.submit', $attempt))
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    $attempt->refresh();
+    expect($attempt->finished_at)->not->toBeNull()
+        ->and((float) $attempt->score_obtained)->toBe(10.0);
+});
+
+it('preserves exact-deadline answer compatibility', function () {
+    $this->travelTo(now()->startOfSecond());
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'allowed_duration_minutes' => 30,
+        'started_at' => now()->subMinutes(30),
+    ]);
+    $correct = $data['question']->options()->where('is_correct', true)->first();
+
+    expect($attempt->isExpired())->toBeFalse();
+    $this->actingAs($data['student'])
+        ->post(signedExamAnswerUrl($attempt, $data['question']), ['options' => [$correct->id]])
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    expect($attempt->answers()->where('answer_option_id', $correct->id)->exists())->toBeTrue();
 });
 
 it('rejects a late Livewire save and next answer before persisting it', function () {

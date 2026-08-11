@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,6 +44,18 @@ class StudentAttempt extends Model
     public function exam(): BelongsTo
     {
         return $this->belongsTo(Exam::class);
+    }
+
+    public function deadline(): CarbonInterface
+    {
+        $durationMinutes = $this->allowed_duration_minutes ?? $this->exam->duration_minutes;
+
+        return $this->started_at->copy()->addMinutes($durationMinutes);
+    }
+
+    public function isExpired(?CarbonInterface $at = null): bool
+    {
+        return ($at ?? now())->greaterThan($this->deadline());
     }
 
     /**

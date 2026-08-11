@@ -65,7 +65,7 @@
             <p class="q-text">{{ $currentQuestion->text }}</p>
 
             <form method="POST"
-                  action="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
+                  action="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->deadline()->addMinutes(10), ['attempt' => $attempt, 'question' => $currentQuestion]) }}"
                   wire:submit="{{ $isLast ? 'finalize' : 'saveAndNext' }}">
                 @csrf
                 <nav class="question-nav" aria-label="Navegador de preguntas">
@@ -75,7 +75,7 @@
                             <li>
                                 <button type="submit"
                                         class="question-nav-button {{ $index === $currentIndex ? 'question-nav-current' : ($answered ? 'question-nav-answered' : 'question-nav-unanswered') }}"
-                                        formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $index]) }}"
+                                        formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->deadline()->addMinutes(10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $index]) }}"
                                         wire:click.prevent="saveAndGoTo({{ $index }})"
                                         @if ($index === $currentIndex) aria-current="step" @endif>
                                     <span aria-hidden="true">{{ $index + 1 }}</span>
@@ -113,7 +113,7 @@
                 <div class="nav">
                     @if ($currentIndex > 0)
                         <button type="submit"
-                                formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->started_at->addMinutes($attempt->exam->duration_minutes + 10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $currentIndex - 1]) }}"
+                                formaction="{{ URL::temporarySignedRoute('student.exam.answer', $attempt->deadline()->addMinutes(10), ['attempt' => $attempt, 'question' => $currentQuestion, 'target' => $currentIndex - 1]) }}"
                                 class="btn-prev"
                                 wire:click.prevent="saveAndPrevious">Anterior</button>
                     @else

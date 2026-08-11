@@ -15,9 +15,6 @@ class CheckExamTimer
     /**
      * Enforce the strict exam timer.
      *
-     * Computes the remaining time server-side as:
-     *   started_at + duration_minutes - now()
-     *
      * If the timer has expired, auto-submits (grades the attempt,
      * sets finished_at) and redirects to the result page.
      * Otherwise, passes through to the next middleware.
@@ -32,11 +29,7 @@ class CheckExamTimer
         }
 
         $this->accessGuard->ensureCanTake($attempt, $request->user()->id);
-        $attempt->load('exam');
-
-        $deadline = $attempt->started_at->addMinutes($attempt->exam->duration_minutes);
-
-        if (now()->greaterThan($deadline)) {
+        if ($attempt->isExpired()) {
             // Timer expired — auto-submit.
             if ($attempt->finished_at === null) {
                 $service = new ExamGradingService;
