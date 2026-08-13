@@ -24,14 +24,15 @@
         @endif
 
         <div class="meta">
-            <span>{{ $exam->duration_minutes }} min</span>
+            <span>{{ $effectiveDurationMinutes }} min</span>
             <span>Puntaje maximo: {{ $exam->max_score }}</span>
             <span>{{ $exam->questions()->count() }} preguntas</span>
         </div>
 
         <div class="warning">
-            Solo tienes un intento. Una vez que comiences, el temporizador
-            comenzara a correr y no podras pausarlo.
+            You have {{ $totalAttempts }} total attempts: {{ $usedAttempts }} used and
+            {{ $remainingAttempts }} remaining. Once you begin, the {{ $effectiveDurationMinutes }} minute timer
+            starts and cannot be paused.
         </div>
 
         <button class="btn-start" wire:click="start" wire:loading.attr="disabled">

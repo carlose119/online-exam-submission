@@ -22,10 +22,12 @@ final class ExamAllowanceService
 
     public function limitsFor(Exam $exam, User $student): EffectiveExamLimits
     {
-        $allowance = ExamAllowance::query()
-            ->whereBelongsTo($exam)
-            ->whereBelongsTo($student, 'student')
-            ->first();
+        $allowance = $exam->relationLoaded('allowances')
+            ? $exam->allowances->firstWhere('student_id', $student->id)
+            : ExamAllowance::query()
+                ->whereBelongsTo($exam)
+                ->whereBelongsTo($student, 'student')
+                ->first();
 
         return $this->limitResolver->resolve($exam, $allowance);
     }
