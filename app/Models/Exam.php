@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['class_id', 'title', 'description', 'duration_minutes', 'max_score'])]
@@ -51,5 +52,13 @@ class Exam extends Model
     public function allowances(): HasMany
     {
         return $this->hasMany(ExamAllowance::class);
+    }
+
+    /**
+     * Students enrolled in the class that owns this exam.
+     */
+    public function students(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'class_user', 'class_id', 'user_id', 'class_id');
     }
 }

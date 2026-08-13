@@ -170,8 +170,9 @@ Administrators do not use public registration to create teachers. Student regist
 2. Create a class first. Share its generated invitation URL/code with students; teacher-facing class, material, exam, and report queries are scoped to owned classes.
 3. Add **Study Materials** as a `FILE`, `LINK`, or `MEETING` reference. Material storage usage appears above the material list.
 4. Create an exam for one owned class, then add ordered single-choice or multiple-choice questions, at least two answer options per question, correct-option flags, points, duration, and maximum score.
-5. Create meetings for a class with a schedule, duration, optional URL and agenda. Recurrence supports weekly, biweekly, or monthly materialized instances, up to 52 instances from the creation form.
-6. Open **Reports** for an owned class to review performance and download PDF or Excel output.
+5. Edit an owned exam and open **Accommodations** to grant an enrolled student additional attempts or extra time. The table shows base, additional, consumed, remaining, and effective limits. Revoke unused additions by reducing them to the number already consumed (or zero when none were consumed); consumed attempts and existing time snapshots remain unchanged, and time changes apply only to attempts started afterward.
+6. Create meetings for a class with a schedule, duration, optional URL and agenda. Recurrence supports weekly, biweekly, or monthly materialized instances, up to 52 instances from the creation form.
+7. Open **Reports** for an owned class to review performance and download PDF or Excel output.
 
 The `MEETING` study-material type is a dated link shown with class materials; the separate **Meetings** resource provides scheduled meetings, recurrence, and student calendar export.
 

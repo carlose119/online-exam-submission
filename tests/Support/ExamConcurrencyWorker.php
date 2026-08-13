@@ -58,6 +58,18 @@ try {
         $student = User::query()->findOrFail((int) ($argv[4] ?? 0));
         $allowance = app(ExamAllowanceService::class)->save($exam, $student, (int) ($argv[5] ?? 0), 0);
         $write(['event' => 'result', 'status' => 'allowance_saved', 'additional_attempts' => $allowance->additional_attempts]);
+    } elseif ($operation === 'teacher-allowance') {
+        $exam = Exam::query()->findOrFail((int) ($argv[3] ?? 0));
+        $student = User::query()->findOrFail((int) ($argv[4] ?? 0));
+        $teacher = User::query()->findOrFail((int) ($argv[5] ?? 0));
+        app(ExamAllowanceService::class)->saveForTeacher($exam, $student, $teacher, 1, 0);
+        $write(['event' => 'result', 'status' => 'allowance_saved']);
+    } elseif ($operation === 'transfer-class') {
+        DB::table('classes')->where('id', (int) ($argv[3] ?? 0))->update(['teacher_id' => (int) ($argv[4] ?? 0)]);
+        $write(['event' => 'result', 'status' => 'ownership_transferred']);
+    } elseif ($operation === 'unenroll') {
+        DB::table('class_user')->where('class_id', (int) ($argv[3] ?? 0))->where('user_id', (int) ($argv[4] ?? 0))->delete();
+        $write(['event' => 'result', 'status' => 'unenrolled']);
     } else {
         throw new InvalidArgumentException('Unknown concurrency worker operation.');
     }

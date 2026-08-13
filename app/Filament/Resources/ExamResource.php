@@ -6,6 +6,7 @@ use App\Enums\QuestionType;
 use App\Filament\Resources\ExamResource\Pages\CreateExam;
 use App\Filament\Resources\ExamResource\Pages\EditExam;
 use App\Filament\Resources\ExamResource\Pages\ListExams;
+use App\Filament\Resources\ExamResource\Pages\ManageExamAccommodations;
 use App\Models\Exam;
 use App\Models\SchoolClass;
 use Filament\Actions\DeleteAction;
@@ -154,6 +155,7 @@ class ExamResource extends Resource
             'index' => ListExams::route('/'),
             'create' => CreateExam::route('/create'),
             'edit' => EditExam::route('/{record}/edit'),
+            'accommodations' => ManageExamAccommodations::route('/{record}/accommodations'),
         ];
     }
 }

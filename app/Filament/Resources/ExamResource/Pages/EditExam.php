@@ -19,6 +19,9 @@ class EditExam extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('accommodations')
+                ->icon('heroicon-o-user-plus')
+                ->url(fn (): string => ExamResource::getUrl('accommodations', ['record' => $this->getRecord()])),
             Action::make('preview')
                 ->label('Preview as student')
                 ->icon('heroicon-o-eye')
