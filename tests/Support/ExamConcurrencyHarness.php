@@ -63,18 +63,15 @@ final class ExamConcurrencyHarness
             if (! $status['running']) {
                 throw new RuntimeException("Worker connection {$connectionId} exited before waiting: ".self::diagnostics($worker, $status));
             }
-            $process = $monitor->query("SELECT INFO FROM information_schema.PROCESSLIST WHERE ID = {$connectionId}")->fetch(PDO::FETCH_ASSOC);
-            if (str_contains(strtolower($process['INFO'] ?? ''), 'for update')) {
-                $transaction = $monitor->query(
-                    "SELECT trx_id, trx_state FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {$connectionId}",
+            $transaction = $monitor->query(
+                "SELECT trx_id, trx_state FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = {$connectionId}",
+            )->fetch(PDO::FETCH_ASSOC);
+            if (($transaction['trx_state'] ?? null) === 'LOCK WAIT') {
+                $wait = $monitor->query(
+                    "SELECT requesting_trx_id, blocking_trx_id FROM information_schema.INNODB_LOCK_WAITS WHERE requesting_trx_id = {$transaction['trx_id']}",
                 )->fetch(PDO::FETCH_ASSOC);
-                if (($transaction['trx_state'] ?? null) === 'LOCK WAIT') {
-                    $wait = $monitor->query(
-                        "SELECT requesting_trx_id, blocking_trx_id FROM information_schema.INNODB_LOCK_WAITS WHERE requesting_trx_id = {$transaction['trx_id']}",
-                    )->fetch(PDO::FETCH_ASSOC);
-                    if ($wait !== false) {
-                        return $wait + ['waiting_connection_id' => $connectionId];
-                    }
+                if ($wait !== false) {
+                    return $wait + ['waiting_connection_id' => $connectionId];
                 }
             }
             usleep(100_000);

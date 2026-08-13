@@ -31,7 +31,7 @@ function retakeConcurrencyFixture(int $additionalAttempts, bool $withFinishedAtt
         ]);
     }
 
-    return compact('exam', 'student');
+    return compact('teacher', 'class', 'exam', 'student');
 }
 
 beforeEach(function () {
@@ -132,3 +132,83 @@ it('serializes concurrent starts without duplicate attempt numbers', function ()
         ->and($numbers->all())->toBe([1, 2])
         ->and($numbers->unique())->toHaveCount(2);
 });
+
+it('serializes teacher allowance mutation against ownership transfer', function () {
+    $data = retakeConcurrencyFixture(0, false);
+    $newTeacher = User::factory()->create(['role' => 'TEACHER']);
+    $worker = null;
+    DB::beginTransaction();
+    try {
+        app(ExamAllowanceService::class)->saveForTeacher($data['exam'], $data['student'], $data['teacher'], 1, 0);
+        $blockingTransaction = (int) DB::scalar('SELECT trx_id FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = CONNECTION_ID()');
+        $worker = ExamConcurrencyHarness::start('transfer-class', $data['class']->id, $newTeacher->id);
+        $ready = ExamConcurrencyHarness::message($worker);
+        $wait = ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
+        expect((int) $wait['blocking_trx_id'])->toBe($blockingTransaction);
+        DB::commit();
+        $result = ExamConcurrencyHarness::message($worker);
+    } finally {
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        ExamConcurrencyHarness::stop($worker);
+    }
+
+    expect($result['status'])->toBe('ownership_transferred')
+        ->and($data['class']->fresh()->teacher_id)->toBe($newTeacher->id)
+        ->and(ExamAllowance::query()->whereBelongsTo($data['exam'])->exists())->toBeTrue();
+});
+
+it('serializes teacher allowance mutation against unenrollment', function () {
+    $data = retakeConcurrencyFixture(0, false);
+    $worker = null;
+    DB::beginTransaction();
+    try {
+        app(ExamAllowanceService::class)->saveForTeacher($data['exam'], $data['student'], $data['teacher'], 1, 0);
+        $blockingTransaction = (int) DB::scalar('SELECT trx_id FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = CONNECTION_ID()');
+        $worker = ExamConcurrencyHarness::start('unenroll', $data['class']->id, $data['student']->id);
+        $ready = ExamConcurrencyHarness::message($worker);
+        $wait = ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
+        expect((int) $wait['blocking_trx_id'])->toBe($blockingTransaction);
+        DB::commit();
+        $result = ExamConcurrencyHarness::message($worker);
+    } finally {
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        ExamConcurrencyHarness::stop($worker);
+    }
+
+    expect($result['status'])->toBe('unenrolled')
+        ->and(DB::table('class_user')->where('class_id', $data['class']->id)->where('user_id', $data['student']->id)->exists())->toBeFalse()
+        ->and(ExamAllowance::query()->whereBelongsTo($data['exam'])->exists())->toBeTrue();
+});
+
+it('rejects a waiting teacher allowance after authority changes commit', function (string $change) {
+    $data = retakeConcurrencyFixture(0, false);
+    $newTeacher = User::factory()->create(['role' => 'TEACHER']);
+    $worker = null;
+    DB::beginTransaction();
+    try {
+        if ($change === 'ownership') {
+            DB::table('classes')->where('id', $data['class']->id)->update(['teacher_id' => $newTeacher->id]);
+        } else {
+            DB::table('class_user')->where('class_id', $data['class']->id)->where('user_id', $data['student']->id)->delete();
+        }
+        $blockingTransaction = (int) DB::scalar('SELECT trx_id FROM information_schema.INNODB_TRX WHERE trx_mysql_thread_id = CONNECTION_ID()');
+        $worker = ExamConcurrencyHarness::start('teacher-allowance', $data['exam']->id, $data['student']->id, $data['teacher']->id);
+        $ready = ExamConcurrencyHarness::message($worker);
+        $wait = ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
+        expect((int) $wait['blocking_trx_id'])->toBe($blockingTransaction);
+        DB::commit();
+        $result = ExamConcurrencyHarness::message($worker);
+    } finally {
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        ExamConcurrencyHarness::stop($worker);
+    }
+
+    expect($result['status'])->toBe($change === 'ownership' ? 'http_exception' : 'validation_exception')
+        ->and(ExamAllowance::query()->whereBelongsTo($data['exam'])->sole()->additional_attempts)->toBe(0);
+})->with(['ownership transfer first' => 'ownership', 'unenrollment first' => 'enrollment']);
