@@ -6,10 +6,19 @@ use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
-use App\Services\ClassReportService;
-use App\Services\ReportFormatService;
+use App\Services\ReportArtifactPublisher;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+function queuedReportClass(User $teacher): SchoolClass
+{
+    return SchoolClass::create([
+        'title' => 'Queued Report Class',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => Str::random(8),
+    ]);
+}
 
 // ---------------------------------------------------------------------------
 // GenerateClassReportPdfJobTest — queue dispatch, storage, notifications
@@ -59,7 +68,7 @@ it('generates and stores PDF file when job is processed', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 15, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportPdf($class->id, $teacher->id);
-    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
+    $job->handle(app(ReportArtifactPublisher::class));
 
     // A PDF file should now exist on the reports disk.
     $files = Storage::disk('reports')->allFiles();
@@ -83,7 +92,7 @@ it('generates and stores Excel file when job is processed', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 9, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportExcel($class->id, $teacher->id);
-    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
+    $job->handle(app(ReportArtifactPublisher::class));
 
     $files = Storage::disk('reports')->allFiles();
     expect($files)->not->toBeEmpty();
@@ -106,7 +115,7 @@ it('handles missing class gracefully without throwing', function () {
     $job = new GenerateClassReportPdf(99999, $teacher->id);
 
     // Should not throw an exception for a non-existent class.
-    expect(fn () => $job->handle(app(ClassReportService::class), app(ReportFormatService::class)))
+    expect(fn () => $job->handle(app(ReportArtifactPublisher::class)))
         ->not->toThrow(Exception::class);
 });
 
@@ -119,7 +128,7 @@ it('handles missing user gracefully without throwing', function () {
 
     $job = new GenerateClassReportPdf($class->id, 99999);
 
-    expect(fn () => $job->handle(app(ClassReportService::class), app(ReportFormatService::class)))
+    expect(fn () => $job->handle(app(ReportArtifactPublisher::class)))
         ->not->toThrow(Exception::class);
 });
 
@@ -156,7 +165,7 @@ it('sends database notification to user when PDF job completes', function () {
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 18, 'started_at' => now(), 'finished_at' => now()]);
 
     $job = new GenerateClassReportPdf($class->id, $teacher->id);
-    $job->handle(app(ClassReportService::class), app(ReportFormatService::class));
+    $job->handle(app(ReportArtifactPublisher::class));
 
     // Assert a database notification was created for the teacher.
     $this->assertDatabaseHas('notifications', [
@@ -169,3 +178,40 @@ it('sends database notification to user when PDF job completes', function () {
     expect($notification->data['title'])->toBe('PDF Report Ready');
     expect($notification->data['body'])->toContain('Notify Class');
 });
+
+it('publishes unique artifacts and notifications when a job retries', function () {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = queuedReportClass($teacher);
+    $job = new GenerateClassReportPdf($class->id, $teacher->id);
+
+    $job->handle(app(ReportArtifactPublisher::class));
+    $job->handle(app(ReportArtifactPublisher::class));
+
+    expect(Storage::disk('reports')->allFiles())->toHaveCount(2)
+        ->and(Storage::disk('reports')->allFiles('staging'))->toBeEmpty()
+        ->and($teacher->notifications()->count())->toBe(2);
+});
+
+it('does not generate or notify after class reassignment or role revocation', function (string $jobClass, string $change) {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = queuedReportClass($teacher);
+    $job = new $jobClass($class->id, $teacher->id);
+
+    $change === 'class'
+        ? $class->update(['teacher_id' => User::factory()->create(['role' => 'TEACHER'])->id])
+        : $teacher->update(['role' => 'STUDENT']);
+
+    $job->handle(app(ReportArtifactPublisher::class));
+
+    expect(Storage::disk('reports')->allFiles())->toBeEmpty();
+    $this->assertDatabaseMissing('notifications', ['notifiable_id' => $teacher->id]);
+})->with([
+    'PDF after reassignment' => [GenerateClassReportPdf::class, 'class'],
+    'Excel after reassignment' => [GenerateClassReportExcel::class, 'class'],
+    'PDF after role revocation' => [GenerateClassReportPdf::class, 'role'],
+    'Excel after role revocation' => [GenerateClassReportExcel::class, 'role'],
+]);

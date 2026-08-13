@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\ClassReportResource;
+use App\Filament\Resources\ClassReportResource\Pages\ClassReport;
 use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
@@ -9,6 +10,19 @@ use App\Services\ClassReportService;
 use App\Services\ReportFormatService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Livewire\Livewire;
+
+function reportClass(?User $teacher = null): SchoolClass
+{
+    $teacher ??= User::factory()->create(['role' => 'TEACHER']);
+
+    return SchoolClass::create([
+        'title' => 'Report Class',
+        'teacher_id' => $teacher->id,
+        'invitation_code' => Str::random(8),
+    ]);
+}
 
 // ---------------------------------------------------------------------------
 // ClassReportTest — access control, report data, sync downloads, pass rate,
@@ -59,6 +73,38 @@ it('guest is redirected to login for class reports', function () {
     $response = $this->get('/admin/class-reports');
 
     $response->assertRedirect('/admin/login');
+});
+
+it('allows own and admin direct report URLs but denies a foreign teacher', function () {
+    config()->set('app.env', 'local');
+
+    $owner = User::factory()->create(['role' => 'TEACHER']);
+    $foreign = User::factory()->create(['role' => 'TEACHER']);
+    $admin = User::factory()->create(['role' => 'ADMIN']);
+    $class = reportClass($owner);
+    $url = ClassReportResource::getUrl('report', ['record' => $class]);
+
+    $this->actingAs($owner)->get($url)->assertOk();
+    $this->flushSession();
+    $this->actingAs($foreign)->get($url)->assertForbidden();
+    $this->flushSession();
+    $this->actingAs($admin)->get($url)->assertOk();
+});
+
+it('reauthorizes a synchronous export action', function () {
+    config()->set('app.env', 'local');
+
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($teacher);
+
+    $this->actingAs($teacher);
+    $page = Livewire::test(ClassReport::class, ['record' => $class]);
+    $class->update(['teacher_id' => User::factory()->create(['role' => 'TEACHER'])->id]);
+
+    $page->call('mountAction', 'downloadPdf')->assertForbidden();
+    expect(Storage::disk('reports')->allFiles())->toBeEmpty();
 });
 
 // ---------------------------------------------------------------------------
@@ -190,14 +236,31 @@ it('allows authenticated teacher to download a report file', function () {
     Storage::fake('reports');
     config()->set('reports.storage_disk', 'reports');
 
-    Storage::disk('reports')->put('test-report.pdf', 'PDF content');
-
     $teacher = User::create(['name' => 'T', 'email' => 'tdown@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = reportClass($teacher);
+    $filename = "class-{$class->id}-test.pdf";
+    Storage::disk('reports')->put($filename, 'PDF content');
 
-    $response = $this->actingAs($teacher)->get('/admin/reports/download/test-report.pdf');
+    $response = $this->actingAs($teacher)->get(route('reports.download', $filename));
 
     $response->assertOk();
     $response->assertHeader('Content-Disposition');
+});
+
+it('allows admin but denies a foreign teacher downloading an artifact', function () {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $owner = User::factory()->create(['role' => 'TEACHER']);
+    $foreign = User::factory()->create(['role' => 'TEACHER']);
+    $admin = User::factory()->create(['role' => 'ADMIN']);
+    $class = reportClass($owner);
+    $filename = "class-{$class->id}-test.pdf";
+    Storage::disk('reports')->put($filename, 'content');
+    $url = route('reports.download', $filename);
+
+    $this->actingAs($foreign)->get($url)->assertForbidden();
+    $this->flushSession();
+    $this->actingAs($admin)->get($url)->assertOk();
 });
 
 it('rejects path traversal in download filename', function () {
@@ -205,8 +268,8 @@ it('rejects path traversal in download filename', function () {
     config()->set('reports.storage_disk', 'reports');
 
     $teacher = User::create(['name' => 'T', 'email' => 'ttrav@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = reportClass($teacher);
 
-    // A filename containing a directory separator should be rejected by the basename() guard.
     $response = $this->actingAs($teacher)->get('/admin/reports/download/foo/bar');
 
     $response->assertStatus(400);
@@ -217,8 +280,9 @@ it('returns 404 for non-existent report file', function () {
     config()->set('reports.storage_disk', 'reports');
 
     $teacher = User::create(['name' => 'T', 'email' => 't404@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = reportClass($teacher);
 
-    $response = $this->actingAs($teacher)->get('/admin/reports/download/nonexistent.pdf');
+    $response = $this->actingAs($teacher)->get(route('reports.download', "class-{$class->id}-nonexistent.pdf"));
 
     $response->assertNotFound();
 });
@@ -227,17 +291,17 @@ it('denies student access to report download route', function () {
     Storage::fake('reports');
     config()->set('reports.storage_disk', 'reports');
 
-    Storage::disk('reports')->put('test.pdf', 'content');
-
     $student = User::create(['name' => 'Student', 'email' => 'st_down@test.com', 'password' => 'password', 'role' => 'STUDENT']);
+    $class = reportClass();
 
-    $response = $this->actingAs($student)->get('/admin/reports/download/test.pdf');
+    $response = $this->actingAs($student)->get(route('reports.download', "class-{$class->id}-test.pdf"));
 
     $response->assertForbidden();
 });
 
 it('redirects unauthenticated user from download route', function () {
-    $response = $this->get('/admin/reports/download/test.pdf');
+    $class = reportClass();
+    $response = $this->get(route('reports.download', "class-{$class->id}-test.pdf"));
 
     $response->assertRedirect('/login');
 });

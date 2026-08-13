@@ -4,10 +4,7 @@ namespace App\Jobs;
 
 use App\Models\SchoolClass;
 use App\Models\User;
-use App\Services\ClassReportService;
-use App\Services\ReportFormatService;
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
+use App\Services\ReportArtifactPublisher;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -26,7 +23,7 @@ class GenerateClassReportPdf implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ClassReportService $service, ReportFormatService $formatter): void
+    public function handle(ReportArtifactPublisher $publisher): void
     {
         $class = SchoolClass::find($this->classId);
 
@@ -40,18 +37,6 @@ class GenerateClassReportPdf implements ShouldQueue
             return;
         }
 
-        $data = $service->generate($class);
-        $filename = $formatter->toPdf($data, $class);
-
-        Notification::make()
-            ->title('PDF Report Ready')
-            ->body("The PDF report for \"{$class->title}\" has been generated.")
-            ->success()
-            ->actions([
-                Action::make('download')
-                    ->label('Download PDF')
-                    ->url(route('reports.download', ['filename' => $filename])),
-            ])
-            ->sendToDatabase($user);
+        $publisher->publish($class, $user, 'pdf');
     }
 }

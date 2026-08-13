@@ -7,13 +7,13 @@ use RuntimeException;
 
 final class ExamConcurrencyHarness
 {
-    public static function start(string $operation, int ...$ids): array
+    public static function start(string $operation, int|string ...$arguments): array
     {
         $ipcPath = tempnam(sys_get_temp_dir(), 'exam-concurrency-');
         if ($ipcPath === false) {
             throw new RuntimeException('Unable to create worker IPC file.');
         }
-        $command = [PHP_BINARY, base_path('tests/Support/ExamConcurrencyWorker.php'), $operation, $ipcPath, ...array_map('strval', $ids)];
+        $command = [PHP_BINARY, base_path('tests/Support/ExamConcurrencyWorker.php'), $operation, $ipcPath, ...array_map('strval', $arguments)];
         $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, base_path());
         if (! is_resource($process)) {
             @unlink($ipcPath);
