@@ -9,7 +9,10 @@ use App\Models\SchoolClass;
 use App\Services\ClassReportService;
 use App\Services\ReportAccess;
 use App\Services\ReportFormatService;
+use App\Values\ReportFilters;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Support\Facades\Auth;
@@ -23,6 +26,8 @@ class ClassReport extends Page
     public SchoolClass $record;
 
     public array $reportData = [];
+
+    public array $filters = ReportFilters::EMPTY;
 
     public function mount(SchoolClass $record): void
     {
@@ -41,6 +46,34 @@ class ClassReport extends Page
         $isSync = $totalAttempts < (int) config('reports.sync_threshold', 100);
 
         return [
+            Action::make('filters')
+                ->icon('heroicon-o-funnel')
+                ->fillForm(fn (): array => $this->filters)
+                ->schema([
+                    Select::make('exam_ids')->label('Exams')->multiple()
+                        ->options(fn (): array => $this->filterOptions('exams', 'title', 'id')),
+                    Select::make('student_ids')->label('Students')->multiple()->searchable()
+                        ->options(fn (): array => $this->filterOptions('students', 'name', 'users.id')),
+                    Select::make('statuses')->label('Attempt status')->multiple()->options([
+                        'in_progress' => 'In progress', 'passed' => 'Passed', 'failed' => 'Failed',
+                    ]),
+                    DateTimePicker::make('started_from')->label('Started from'),
+                    DateTimePicker::make('started_until')->label('Started until')->afterOrEqual('started_from'),
+                ])
+                ->action(function (array $data): void {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+                    $this->filters = ReportFilters::fromTrustedForm($data, $this->record)->toArray();
+                    $this->reportData = app(ClassReportService::class)->generate($this->record, $this->filters);
+                }),
+            Action::make('clearFilters')
+                ->label('Clear filters')
+                ->color('gray')
+                ->visible(fn (): bool => $this->filters !== ReportFilters::EMPTY)
+                ->action(function (): void {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+                    $this->filters = ReportFilters::trustedEmpty();
+                    $this->reportData = app(ClassReportService::class)->generate($this->record);
+                }),
             Action::make('downloadPdf')
                 ->label('Download PDF')
                 ->icon('heroicon-o-document-arrow-down')
@@ -49,13 +82,13 @@ class ClassReport extends Page
                     app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
 
                     if ($isSync) {
-                        $data = app(ClassReportService::class)->generate($this->record);
+                        $data = app(ClassReportService::class)->generate($this->record, $this->filters);
                         $filename = app(ReportFormatService::class)->toPdf($data, $this->record);
 
                         return redirect()->route('reports.download', ['filename' => $filename]);
                     }
 
-                    GenerateClassReportPdf::dispatch($this->record->id, Auth::id());
+                    GenerateClassReportPdf::dispatch($this->record->id, Auth::id(), $this->filters);
 
                     Notification::make()
                         ->title('PDF Report Queued')
@@ -74,13 +107,13 @@ class ClassReport extends Page
                     app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
 
                     if ($isSync) {
-                        $data = app(ClassReportService::class)->generate($this->record);
+                        $data = app(ClassReportService::class)->generate($this->record, $this->filters);
                         $filename = app(ReportFormatService::class)->toExcel($data, $this->record);
 
                         return redirect()->route('reports.download', ['filename' => $filename]);
                     }
 
-                    GenerateClassReportExcel::dispatch($this->record->id, Auth::id());
+                    GenerateClassReportExcel::dispatch($this->record->id, Auth::id(), $this->filters);
 
                     Notification::make()
                         ->title('Excel Report Queued')
@@ -91,5 +124,12 @@ class ClassReport extends Page
                     return null;
                 }),
         ];
+    }
+
+    private function filterOptions(string $relation, string $label, string $key): array
+    {
+        app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+
+        return $this->record->{$relation}()->orderBy($label)->pluck($label, $key)->all();
     }
 }

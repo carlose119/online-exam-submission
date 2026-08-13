@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\SchoolClass;
 use App\Models\User;
 use App\Services\ReportArtifactPublisher;
+use App\Values\ReportFilters;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -18,6 +19,7 @@ class GenerateClassReportExcel implements ShouldQueue
     public function __construct(
         private readonly int $classId,
         private readonly int $userId,
+        private readonly array $filters = ReportFilters::EMPTY,
     ) {}
 
     /**
@@ -37,6 +39,6 @@ class GenerateClassReportExcel implements ShouldQueue
             return;
         }
 
-        $publisher->publish($class, $user, 'xlsx');
+        $publisher->publish($class, $user, 'xlsx', $this->filters);
     }
 }
