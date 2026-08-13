@@ -185,12 +185,32 @@
                             <p class="description">{{ Str::limit($exam->description, 100) }}</p>
                         @endif
                         <div class="counts" style="margin-bottom:1rem;">
-                            <span>{{ $exam->duration_minutes }} min</span>
+                            <span>{{ $exam->effective_duration_minutes }} min</span>
                             <span>{{ $exam->max_score }} pts</span>
+                            <span>{{ $exam->remaining_attempts }} remaining</span>
                         </div>
                         <a href="{{ route('student.exam.start', $exam) }}"
                            style="display:inline-block;background:#2563eb;color:#fff;border-radius:6px;padding:0.5rem 1rem;text-decoration:none;font-size:0.875rem;">
                             Iniciar examen
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    {{-- Active exams --}}
+    @if ($activeAttempts->isNotEmpty())
+        <div style="margin-top:2.5rem;margin-bottom:1rem;">
+            <h2 style="font-size:1.25rem;margin:0 0 1rem 0;">Examenes activos</h2>
+            <div class="grid">
+                @foreach ($activeAttempts as $attempt)
+                    <div class="card">
+                        <h3>{{ $attempt->exam->title }}</h3>
+                        <p class="description">Attempt {{ $attempt->attempt_number ?? 1 }} is in progress.</p>
+                        <a href="{{ route('student.exam.take', $attempt) }}"
+                           style="display:inline-block;background:#2563eb;color:#fff;border-radius:6px;padding:0.5rem 1rem;text-decoration:none;font-size:0.875rem;">
+                            Continuar examen
                         </a>
                     </div>
                 @endforeach
@@ -206,6 +226,7 @@
                 @foreach ($completedAttempts as $attempt)
                     <div class="card">
                         <h3>{{ $attempt->exam->title }}</h3>
+                        <p class="description">Attempt {{ $attempt->attempt_number ?? 1 }}</p>
                         <p style="font-size:1.5rem;font-weight:700;margin:0.5rem 0;">
                             {{ (float) $attempt->score_obtained }} / {{ (int) $attempt->exam->max_score }}
                         </p>
@@ -214,6 +235,10 @@
                                 Completado el {{ $attempt->finished_at->format('d/m/Y H:i') }}
                             </p>
                         @endif
+                        <a href="{{ route('student.exam.result', $attempt) }}"
+                           style="color:#2563eb;font-size:0.875rem;text-decoration:none;">
+                            Ver resultado
+                        </a>
                     </div>
                 @endforeach
             </div>

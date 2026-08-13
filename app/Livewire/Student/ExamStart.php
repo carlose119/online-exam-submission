@@ -17,6 +17,14 @@ class ExamStart extends Component
 {
     public Exam $exam;
 
+    public int $effectiveDurationMinutes;
+
+    public int $totalAttempts;
+
+    public int $usedAttempts;
+
+    public int $remainingAttempts;
+
     public function mount(Exam $exam): void
     {
         $this->exam = $exam->load('classroom');
@@ -24,9 +32,14 @@ class ExamStart extends Component
         app(ExamAccessGuard::class)->ensureSubscribed($this->exam, Auth::id());
 
         $attempts = StudentAttempt::where('student_id', Auth::id())->where('exam_id', $this->exam->id);
+        $limits = app(ExamAllowanceService::class)->limitsFor($this->exam, Auth::user());
+        $this->effectiveDurationMinutes = $limits->durationMinutes;
+        $this->totalAttempts = $limits->totalAttempts;
+        $this->usedAttempts = $attempts->count();
+        $this->remainingAttempts = max(0, $this->totalAttempts - $this->usedAttempts);
 
         if ((clone $attempts)->whereNull('finished_at')->exists()
-            || $attempts->count() >= app(ExamAllowanceService::class)->limitsFor($this->exam, Auth::user())->totalAttempts) {
+            || $this->remainingAttempts === 0) {
             abort(403, 'You have already taken this exam.');
         }
     }

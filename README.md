@@ -8,7 +8,7 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 |---|---|
 | Administration | Manage teacher accounts and access the shared Filament panel at `/admin`. |
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
-| Exams | Teachers build single- and multiple-choice exams; students receive one attempt with server-enforced timing and automatic grading. |
+| Exams | Teachers build single- and multiple-choice exams; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
 | Student experience | Students register, join multiple classes, use a dashboard, update profile credentials, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
@@ -181,8 +181,9 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
 2. Open a teacher's invitation URL and join while authenticated and verified. Joining is idempotent, and the class then appears on `/dashboard`.
 3. Use the dashboard to review joined classes and their materials, exams, and meetings. A verified `STUDENT` can open `/profile`, edit only their own name, change their email or password after entering the current password, and review read-only enrollment information. Changing email requires reverification. Changing password keeps the current browser signed in and signs out other sessions.
-4. After verifying the account, start an exam only after joining its class. Select one answer for single-choice questions or any applicable answers for multiple-choice questions. The numbered question navigator saves the current answer before opening any question: blue marks the current question, green marks answered questions, and amber marks unanswered questions; the visible legend and screen-reader labels expose the same states without relying on color. Numbers wrap on narrow screens and remain keyboard accessible. With Livewire, every selection and deselection is saved asynchronously; every Previous, Next, Finish, or numbered navigation action also saves before navigating, and returning to a question restores the saved selection. Without JavaScript, navigation submits through the same temporary signed POST answer route; submitting the last answer with Finish persists it, grades the attempt, and opens the result, while Previous and numbered navigation never finalize. Each student receives one attempt per exam; the server enforces the timer and exposes only that student's result.
-5. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
+4. After verifying the account, start an exam only after joining its class. The start screen shows your effective duration and total, used, and remaining attempts; these values include only your accommodation. A completed exam returns to the available list while an attempt remains. An unfinished attempt appears separately as active and must be resumed before another can start; when its deadline expires, the dashboard finalizes it into history and reveals any remaining retake. Every completed attempt remains in history with its own score and result link.
+5. Select one answer for single-choice questions or any applicable answers for multiple-choice questions. The numbered question navigator saves the current answer before opening any question: blue marks the current question, green marks answered questions, and amber marks unanswered questions; the visible legend and screen-reader labels expose the same states without relying on color. Numbers wrap on narrow screens and remain keyboard accessible. With Livewire, every selection and deselection is saved asynchronously; every Previous, Next, Finish, or numbered navigation action also saves before navigating, and returning to a question restores the saved selection. Without JavaScript, navigation submits through the same temporary signed POST answer route; submitting the last answer with Finish persists it, grades the attempt, and opens the result, while Previous and numbered navigation never finalize. The server enforces the timer and exposes only that student's attempts and results.
+6. Download an individual meeting as `.ics`, or copy the private aggregate calendar subscription URL from the dashboard. An unverified owner's existing feed is unavailable until verification; tokens are not replaced or backfilled. Regenerate the feed token if the URL is exposed.
 
 ### Material uploads
 
@@ -210,10 +211,11 @@ Run the same core checks used by the primary CI workflow:
 ```bash
 npm run build
 vendor/bin/pint --test
+vendor/bin/pest tests/Feature/ExamRetakeTest.php tests/Feature/StudentDashboardTest.php
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **373 tests and 1,375 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **406 tests and 1,545 assertions**.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
