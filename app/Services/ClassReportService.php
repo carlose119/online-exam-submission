@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\SchoolClass;
+use App\Values\ReportFilters;
+use Carbon\CarbonImmutable;
 
 class ClassReportService
 {
@@ -23,10 +25,16 @@ class ClassReportService
      *     overall_stats: array{total_attempts: int, avg_score: float, pass_rate: float}
      * }
      */
-    public function generate(SchoolClass $class): array
+    public function generate(SchoolClass $class, array $filters = ReportFilters::EMPTY): array
     {
+        $filters = ReportFilters::from($filters, $class);
         $class->load([
             'teacher',
+            'exams' => fn ($query) => $query->when($filters->examIds, fn ($query) => $query->whereKey($filters->examIds)),
+            'exams.studentAttempts' => fn ($query) => $query
+                ->when($filters->studentIds, fn ($query) => $query->whereIn('student_id', $filters->studentIds))
+                ->when($filters->startedFrom, fn ($query) => $query->where('started_at', '>=', CarbonImmutable::parse($filters->startedFrom)->toDateTimeString()))
+                ->when($filters->startedUntil, fn ($query) => $query->where('started_at', '<=', CarbonImmutable::parse($filters->startedUntil)->toDateTimeString())),
             'exams.studentAttempts.student',
         ]);
 
@@ -36,7 +44,17 @@ class ClassReportService
         $allScores = [];
 
         foreach ($class->exams as $exam) {
-            $attempts = $exam->studentAttempts;
+            $attempts = $exam->studentAttempts->filter(function ($attempt) use ($exam, $filters, $passThreshold): bool {
+                if (! $filters->statuses) {
+                    return true;
+                }
+
+                $status = $attempt->finished_at === null
+                    ? 'in_progress'
+                    : ((float) $attempt->score_obtained >= $passThreshold * (int) $exam->max_score ? 'passed' : 'failed');
+
+                return in_array($status, $filters->statuses, true);
+            });
 
             $attemptDetails = [];
             $scores = [];

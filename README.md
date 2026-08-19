@@ -176,6 +176,11 @@ Administrators do not use public registration to create teachers. Student regist
 
 The `MEETING` study-material type is a dated link shown with class materials; the separate **Meetings** resource provides scheduled meetings, recurrence, and student calendar export.
 
+### Report filters
+- **Available:** Filter by one or more exams, students, or attempt statuses: **In progress**, **Passed**, or **Failed**.
+- **Attempt start:** **Started from** and **Started until** are inclusive `started_at` bounds, normalized to canonical UTC before filtering.
+- **Controls and output:** Choose **Filters** to apply or **Clear filters** to restore the full report. The same snapshot drives the page, PDF, XLSX, and queued output; empty filters preserve the unfiltered report.
+
 ### Student
 
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.

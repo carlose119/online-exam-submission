@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ReportArtifactCleanupException;
 use App\Models\SchoolClass;
 use App\Models\User;
+use App\Values\ReportFilters;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,7 @@ class ReportArtifactPublisher
         private readonly ReportAccess $access,
     ) {}
 
-    public function publish(SchoolClass $class, User $user, string $format): bool
+    public function publish(SchoolClass $class, User $user, string $format, array $filters = ReportFilters::EMPTY): bool
     {
         $disk = Storage::disk(config('reports.storage_disk'));
         $extension = $format === 'pdf' ? 'pdf' : 'xlsx';
@@ -39,7 +40,7 @@ class ReportArtifactPublisher
         $moved = false;
 
         try {
-            $data = $this->reports->generate($class);
+            $data = $this->reports->generate($class, $filters);
             $format === 'pdf'
                 ? $this->formats->toPdf($data, $class, $staged)
                 : $this->formats->toExcel($data, $class, $staged);
