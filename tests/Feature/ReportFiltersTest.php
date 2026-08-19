@@ -42,7 +42,6 @@ function filterFixture(): array
 
 it('normalizes canonical scalar filters and rejects cross-class ids', function () {
     extract(filterFixture());
-
     $filters = ReportFilters::from([
         'version' => 1,
         'exam_ids' => [$exam->id, $exam->id],
@@ -50,12 +49,10 @@ it('normalizes canonical scalar filters and rejects cross-class ids', function (
         'statuses' => ['passed'],
         'started_from' => '2026-06-15T08:00:00-04:00',
     ], $class)->toArray();
-
     expect($filters)->toMatchArray([
         'version' => 1, 'exam_ids' => [$exam->id], 'student_ids' => [$student->id],
         'statuses' => ['passed'], 'started_from' => '2026-06-15T12:00:00.000000Z',
     ]);
-
     expect(fn () => ReportFilters::from(['version' => 1, 'exam_ids' => [$foreignExam->id]], $class))
         ->toThrow(ValidationException::class);
     expect(fn () => ReportFilters::from(['version' => 1, 'student_ids' => [$foreign->id]], $class))
@@ -64,13 +61,11 @@ it('normalizes canonical scalar filters and rejects cross-class ids', function (
 
 it('applies combined filters to the shared report payload using started_at', function () {
     extract(filterFixture());
-
     $data = app(ClassReportService::class)->generate($class, [
         'version' => 1,
         'exam_ids' => [$exam->id], 'student_ids' => [$student->id], 'statuses' => ['passed'],
         'started_from' => '2026-06-15T11:59:00Z', 'started_until' => '2026-06-15T12:01:00Z',
     ]);
-
     expect($data['exams'])->toHaveCount(1)
         ->and($data['exams'][0]['attempts'])->toHaveCount(1)
         ->and($data['overall_stats'])->toMatchArray(['total_attempts' => 1, 'avg_score' => 8.0, 'pass_rate' => 100.0]);
