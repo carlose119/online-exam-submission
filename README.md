@@ -185,9 +185,11 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 1. Open **Report schedules**, create a schedule, and choose a class, PDF/XLSX output, optional report filters, recurrence, local time, IANA timezone, and enabled state.
 2. Save it, then use **Edit**, **Enable/Disable**, or **Delete** from the owner-only list as requirements change.
-3. Review **Next run (UTC)** to confirm how the local wall time was resolved. This screen stores the schedule definition; automated execution is not included yet.
+3. Review **Next run (UTC)** to confirm how the local wall time was resolved. The console scheduler claims due occurrences every minute; production must run `php artisan schedule:run` every minute and supervise the queue worker.
 
 Daily schedules target every local day; weekly schedules target the selected weekday. Daylight-saving gaps are skipped, while an ambiguous repeated time uses its earliest UTC instant. Teachers can schedule only classes they currently own. Administrators may choose any class, but every user sees and mutates only schedules they created; class authority, owner, filters, and selected identifiers are rechecked for every change.
+
+After downtime, only the oldest due occurrence runs and the next time advances directly into the future. A completed run creates one private deterministic file and one database notification with the existing authorized download action. Duplicate dispatches, queue deliveries, and retries reuse that run identity; disabled, changed, or unauthorized definitions are skipped without publishing, while transient storage or database failures remain retryable through Laravel's normal failed-job controls.
 
 ### Student
 

@@ -10,6 +10,7 @@ use App\Services\ExamAllowanceService;
 use App\Services\ExamAttemptCreator;
 use App\Services\ExamGradingService;
 use App\Services\ReportArtifactPublisher;
+use App\Services\ReportScheduleService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -77,6 +78,16 @@ try {
         $user = User::query()->findOrFail((int) ($argv[4] ?? 0));
         $published = app(ReportArtifactPublisher::class)->publish($class, $user, $argv[5] ?? 'pdf');
         $write(['event' => 'result', 'status' => $published ? 'published' : 'unauthorized']);
+    } elseif ($operation === 'claim-reports') {
+        $write(['event' => 'result', 'claimed' => app(ReportScheduleService::class)->dispatchDue()]);
+    } elseif ($operation === 'run-report') {
+        app(ReportScheduleService::class)->execute((int) ($argv[3] ?? 0), isset($argv[4]) ? function () use ($argv): void {
+            file_put_contents($argv[4], '1', FILE_APPEND | LOCK_EX);
+            while (strlen((string) file_get_contents($argv[4])) < (int) $argv[5]) {
+                usleep(20_000);
+            }
+        } : null);
+        $write(['event' => 'result', 'status' => DB::table('report_runs')->where('id', (int) $argv[3])->value('status')]);
     } else {
         throw new InvalidArgumentException('Unknown concurrency worker operation.');
     }

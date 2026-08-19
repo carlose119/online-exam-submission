@@ -7,11 +7,13 @@ use App\Models\SchoolClass;
 use App\Models\User;
 use App\Values\ReportFilters;
 use Filament\Actions\Action;
+use Filament\Notifications\DatabaseNotification;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Ramsey\Uuid\Uuid;
 use Throwable;
 
 class ReportArtifactPublisher
@@ -28,14 +30,22 @@ class ReportArtifactPublisher
         private readonly ReportAccess $access,
     ) {}
 
-    public function publish(SchoolClass $class, User $user, string $format, array $filters = ReportFilters::EMPTY): bool
-    {
+    public function publish(
+        SchoolClass $class,
+        User $user,
+        string $format,
+        array $filters = ReportFilters::EMPTY,
+        ?string $identity = null,
+        ?callable $guard = null,
+        ?callable $complete = null,
+    ): bool {
         $disk = Storage::disk(config('reports.storage_disk'));
         $extension = $format === 'pdf' ? 'pdf' : 'xlsx';
         $label = $format === 'pdf' ? 'PDF' : 'Excel';
-        $identity = (string) Str::uuid();
-        $staged = "staging/{$identity}.{$extension}";
-        $filename = null;
+        $deterministic = $identity !== null;
+        $identity ??= (string) Str::uuid();
+        $staged = 'staging/'.Str::uuid().".{$extension}";
+        $filename = $deterministic ? "class-{$class->id}-{$identity}.{$extension}" : null;
         $published = false;
         $moved = false;
 
@@ -45,22 +55,28 @@ class ReportArtifactPublisher
                 ? $this->formats->toPdf($data, $class, $staged)
                 : $this->formats->toExcel($data, $class, $staged);
 
-            DB::transaction(function () use ($class, $user, $label, $extension, $identity, $disk, $staged, &$filename, &$published, &$moved): void {
+            DB::transaction(function () use ($class, $user, $label, $extension, $identity, $deterministic, $guard, $complete, $disk, $staged, &$filename, &$published, &$moved): void {
                 $lockedUser = User::query()->lockForUpdate()->find($user->id);
                 $lockedClass = SchoolClass::query()->lockForUpdate()->find($class->id);
 
-                if (! $lockedUser || ! $lockedClass || ! $this->access->allows($lockedUser, $lockedClass)) {
+                if (($decision = $guard ? $guard($lockedUser, $lockedClass) : true) !== true || ! $lockedUser || ! $lockedClass || ! $this->access->allows($lockedUser, $lockedClass)) {
+                    if ($decision === false && $deterministic && $filename !== null) {
+                        $this->cleanup($disk, $filename, 'canonical');
+                    }
+
                     return;
                 }
 
-                $filename = $this->formats->filename($lockedClass, $extension, $identity);
+                $filename ??= $this->formats->filename($lockedClass, $extension, $identity);
 
-                if (! $disk->move($staged, $filename)) {
-                    throw new \RuntimeException('Unable to publish report artifact.');
+                if (! ($deterministic && $disk->exists($filename))) {
+                    if (! $disk->move($staged, $filename)) {
+                        throw new \RuntimeException('Unable to publish report artifact.');
+                    }
+                    $moved = true;
                 }
-                $moved = true;
 
-                Notification::make()
+                $notification = Notification::make()
                     ->title($label.' Report Ready')
                     ->body("The {$label} report for \"{$lockedClass->title}\" has been generated.")
                     ->success()
@@ -68,14 +84,30 @@ class ReportArtifactPublisher
                         Action::make('download')
                             ->label('Download '.$label)
                             ->url(route('reports.download', ['filename' => $filename])),
-                    ])
-                    ->sendToDatabase($lockedUser);
+                    ]);
+                if ($deterministic) {
+                    DB::table('notifications')->insert([
+                        'id' => Uuid::uuid5(Uuid::NAMESPACE_URL, $identity)->toString(), 'type' => DatabaseNotification::class,
+                        'notifiable_type' => $lockedUser->getMorphClass(), 'notifiable_id' => $lockedUser->id,
+                        'data' => json_encode($notification->getDatabaseMessage(), JSON_THROW_ON_ERROR),
+                        'read_at' => null, 'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                } else {
+                    $notification->sendToDatabase($lockedUser);
+                }
+                $complete?->__invoke($filename);
 
                 $published = true;
             });
         } catch (Throwable $exception) {
             if ($moved && $filename !== null) {
-                $this->cleanup($disk, $filename, 'canonical');
+                DB::transaction(function () use ($class, $user, $guard, $disk, $filename): void {
+                    $lockedUser = User::query()->lockForUpdate()->find($user->id);
+                    $lockedClass = SchoolClass::query()->lockForUpdate()->find($class->id);
+                    if (! $guard || $guard($lockedUser, $lockedClass) !== null) {
+                        $this->cleanup($disk, $filename, 'canonical');
+                    }
+                });
             }
 
             throw $exception;
