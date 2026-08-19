@@ -181,6 +181,14 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 - **Attempt start:** **Started from** and **Started until** are inclusive `started_at` bounds, normalized to canonical UTC before filtering.
 - **Controls and output:** Choose **Filters** to apply or **Clear filters** to restore the full report. The same snapshot drives the page, PDF, XLSX, and queued output; empty filters preserve the unfiltered report.
 
+### Report schedules
+
+1. Open **Report schedules**, create a schedule, and choose a class, PDF/XLSX output, optional report filters, recurrence, local time, IANA timezone, and enabled state.
+2. Save it, then use **Edit**, **Enable/Disable**, or **Delete** from the owner-only list as requirements change.
+3. Review **Next run (UTC)** to confirm how the local wall time was resolved. This screen stores the schedule definition; automated execution is not included yet.
+
+Daily schedules target every local day; weekly schedules target the selected weekday. Daylight-saving gaps are skipped, while an ambiguous repeated time uses its earliest UTC instant. Teachers can schedule only classes they currently own. Administrators may choose any class, but every user sees and mutates only schedules they created; class authority, owner, filters, and selected identifiers are rechecked for every change.
+
 ### Student
 
 1. Register at `/register` or sign in at `/login`. Self-registration always creates a `STUDENT` account and sends an inbox verification link; verify the account before using core student capabilities.
