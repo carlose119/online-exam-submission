@@ -2,12 +2,14 @@
 
 use App\Models\Exam;
 use App\Models\Question;
+use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
 use App\Services\AnswerSelectionWriter;
 use App\Services\ExamAllowanceService;
 use App\Services\ExamAttemptCreator;
 use App\Services\ExamGradingService;
+use App\Services\ReportArtifactPublisher;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -70,6 +72,11 @@ try {
     } elseif ($operation === 'unenroll') {
         DB::table('class_user')->where('class_id', (int) ($argv[3] ?? 0))->where('user_id', (int) ($argv[4] ?? 0))->delete();
         $write(['event' => 'result', 'status' => 'unenrolled']);
+    } elseif ($operation === 'publish-report') {
+        $class = SchoolClass::query()->findOrFail((int) ($argv[3] ?? 0));
+        $user = User::query()->findOrFail((int) ($argv[4] ?? 0));
+        $published = app(ReportArtifactPublisher::class)->publish($class, $user, $argv[5] ?? 'pdf');
+        $write(['event' => 'result', 'status' => $published ? 'published' : 'unauthorized']);
     } else {
         throw new InvalidArgumentException('Unknown concurrency worker operation.');
     }

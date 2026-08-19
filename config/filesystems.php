@@ -51,7 +51,7 @@ return [
             'driver' => 'local',
             'root' => storage_path('app/reports'),
             'visibility' => 'private',
-            'throw' => false,
+            'throw' => true,
             'report' => false,
         ],
 

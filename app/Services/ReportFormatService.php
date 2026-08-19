@@ -16,9 +16,9 @@ class ReportFormatService
      * @param  array  $data  Structured data from ClassReportService::generate()
      * @return string The filename (not full path) stored on the reports disk.
      */
-    public function toPdf(array $data, SchoolClass $class): string
+    public function toPdf(array $data, SchoolClass $class, ?string $filename = null): string
     {
-        $filename = $this->filename($class, 'pdf');
+        $filename ??= $this->filename($class, 'pdf');
 
         $pdfContent = Pdf::loadView('reports.class-pdf', [
             'data' => $data,
@@ -39,9 +39,9 @@ class ReportFormatService
      * @param  array  $data  Structured data from ClassReportService::generate()
      * @return string The filename (not full path) stored on the reports disk.
      */
-    public function toExcel(array $data, SchoolClass $class): string
+    public function toExcel(array $data, SchoolClass $class, ?string $filename = null): string
     {
-        $filename = $this->filename($class, 'xlsx');
+        $filename ??= $this->filename($class, 'xlsx');
 
         Excel::store(
             new ClassReportExcelExport($data, $class),
@@ -55,8 +55,8 @@ class ReportFormatService
     /**
      * Build a deterministic filename: class-{id}-{timestamp}.{ext}
      */
-    private function filename(SchoolClass $class, string $ext): string
+    public function filename(SchoolClass $class, string $ext, ?string $suffix = null): string
     {
-        return sprintf('class-%d-%s.%s', $class->id, now()->format('Ymd-His'), $ext);
+        return sprintf('class-%d-%s%s.%s', $class->id, now()->format('Ymd-His'), $suffix ? '-'.$suffix : '', $ext);
     }
 }

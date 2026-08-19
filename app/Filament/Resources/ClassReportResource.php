@@ -5,12 +5,12 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ClassReportResource\Pages\ClassReport;
 use App\Filament\Resources\ClassReportResource\Pages\ListClassReports;
 use App\Models\SchoolClass;
+use App\Services\ReportAccess;
 use Filament\Actions\Action;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
 
 class ClassReportResource extends Resource
 {
@@ -20,9 +20,6 @@ class ClassReportResource extends Resource
 
     protected static ?string $navigationLabel = 'Reports';
 
-    /**
-     * Scope: TEACHER sees own classes, ADMIN sees all classes.
-     */
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()
@@ -31,11 +28,7 @@ class ClassReportResource extends Resource
                 $q->join('student_attempts', 'student_attempts.exam_id', '=', 'exams.id');
             }]);
 
-        if (Auth::user()?->role === 'TEACHER') {
-            $query->where('teacher_id', Auth::id());
-        }
-
-        return $query;
+        return app(ReportAccess::class)->scope($query, auth()->user());
     }
 
     public static function table(Table $table): Table

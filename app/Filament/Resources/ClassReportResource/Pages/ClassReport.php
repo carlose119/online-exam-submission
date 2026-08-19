@@ -7,6 +7,7 @@ use App\Jobs\GenerateClassReportExcel;
 use App\Jobs\GenerateClassReportPdf;
 use App\Models\SchoolClass;
 use App\Services\ClassReportService;
+use App\Services\ReportAccess;
 use App\Services\ReportFormatService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -25,6 +26,8 @@ class ClassReport extends Page
 
     public function mount(SchoolClass $record): void
     {
+        app(ReportAccess::class)->authorize(auth()->user(), $record);
+
         $this->record = $record;
         $this->reportData = app(ClassReportService::class)->generate($record);
     }
@@ -43,6 +46,8 @@ class ClassReport extends Page
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('gray')
                 ->action(function () use ($isSync): mixed {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+
                     if ($isSync) {
                         $data = app(ClassReportService::class)->generate($this->record);
                         $filename = app(ReportFormatService::class)->toPdf($data, $this->record);
@@ -66,6 +71,8 @@ class ClassReport extends Page
                 ->icon('heroicon-o-table-cells')
                 ->color('success')
                 ->action(function () use ($isSync): mixed {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+
                     if ($isSync) {
                         $data = app(ClassReportService::class)->generate($this->record);
                         $filename = app(ReportFormatService::class)->toExcel($data, $this->record);
