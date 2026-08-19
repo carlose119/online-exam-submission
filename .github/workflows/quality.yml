@@ -45,6 +45,7 @@ jobs:
             ${{ runner.os }}-php-8.4-composer-
       - run: composer validate --strict --no-interaction
       - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: sudo apt-get update && sudo apt-get install --yes poppler-utils
       - name: Check generated Filament assets
         run: git diff --exit-code -- public/css/filament public/js/filament
       - run: vendor/bin/pint --test

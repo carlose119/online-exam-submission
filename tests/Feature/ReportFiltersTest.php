@@ -32,7 +32,6 @@ function filterFixture(): array
     $exam = Exam::create(['class_id' => $class->id, 'title' => 'Included', 'max_score' => 10, 'duration_minutes' => 10]);
     $otherExam = Exam::create(['class_id' => $class->id, 'title' => 'Excluded', 'max_score' => 10, 'duration_minutes' => 10]);
     $foreignExam = Exam::create(['class_id' => $other->id, 'title' => 'Foreign', 'max_score' => 10, 'duration_minutes' => 10]);
-
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $exam->id, 'score_obtained' => 8, 'started_at' => '2026-06-15 12:00:00', 'finished_at' => '2026-06-15 12:05:00']);
     StudentAttempt::create(['student_id' => $excluded->id, 'exam_id' => $exam->id, 'score_obtained' => 4, 'started_at' => '2026-06-15 12:00:00', 'finished_at' => '2026-06-15 12:05:00']);
     StudentAttempt::create(['student_id' => $student->id, 'exam_id' => $otherExam->id, 'score_obtained' => null, 'started_at' => '2026-06-15 12:00:00']);
