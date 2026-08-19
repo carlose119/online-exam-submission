@@ -76,6 +76,7 @@ it('rejects invalid schedule inputs and cross-class filters', function (array $r
     'format' => [['format' => 'csv']], 'timezone' => [['timezone' => 'Mars/Base']],
     'time' => [['local_time' => '24:00']], 'recurrence' => [['recurrence' => 'monthly']],
     'weekly day' => [['recurrence' => 'weekly']], 'daily day' => [['weekday' => 1]],
+    'enabled string' => [['enabled' => 'false']], 'enabled integer' => [['enabled' => 0]], 'enabled null' => [['enabled' => null]],
 ]);
 
 it('rejects cross-class ids, reassignment, role revocation, and non-owner tampering', function () {

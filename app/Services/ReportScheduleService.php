@@ -12,14 +12,14 @@ use Illuminate\Validation\ValidationException;
 
 final class ReportScheduleService
 {
-    public function __construct(private ReportScheduleTime $time) {}
+    public function __construct(private ReportScheduleTime $time, private ReportAccess $access) {}
 
     public function create(User $actor, int $classId, array $data): ReportSchedule
     {
         return DB::transaction(function () use ($actor, $classId, $data): ReportSchedule {
             $actor = User::query()->lockForUpdate()->findOrFail($actor->id);
             $class = SchoolClass::query()->lockForUpdate()->findOrFail($classId);
-            $this->authorizeClass($actor, $class);
+            $this->access->authorize($actor, $class);
 
             $attributes = $this->stored($this->attributes($data, $class) + ['owner_id' => $actor->id, 'class_id' => $class->id]);
             $id = DB::table('report_schedules')->insertGetId($attributes + ['created_at' => now(), 'updated_at' => now()]);
@@ -66,7 +66,7 @@ final class ReportScheduleService
             $schedule = ReportSchedule::query()->lockForUpdate()->findOrFail($scheduleId);
             abort_unless($schedule->owner_id === $actor->id && $schedule->class_id === $snapshot->class_id, 403);
             foreach ($classes as $class) {
-                $this->authorizeClass($actor, $class);
+                $this->access->authorize($actor, $class);
             }
             $class = $classes->get($targetClassId ?? $schedule->class_id);
             abort_unless($class && $classes->count() === count($classIds), 403);
@@ -82,13 +82,17 @@ final class ReportScheduleService
         if (! in_array($data['format'] ?? null, ['pdf', 'xlsx'], true)) {
             throw ValidationException::withMessages(['format' => 'The format value is invalid.']);
         }
+        $enabled = array_key_exists('enabled', $data) ? $data['enabled'] : true;
+        if (! is_bool($enabled)) {
+            throw ValidationException::withMessages(['enabled' => 'The enabled value must be true or false.']);
+        }
         $filters = ReportFilters::from($data['filters'] ?? [], $class)->toArray();
         $next = $this->time->next($data['recurrence'] ?? '', $data['weekday'] ?? null, $data['local_time'] ?? '', $data['timezone'] ?? '');
 
         return [
             'format' => $data['format'], 'filters' => $filters, 'recurrence' => $data['recurrence'],
             'weekday' => $data['weekday'] ?? null, 'local_time' => $data['local_time'],
-            'timezone' => $data['timezone'], 'next_run_at' => $next, 'enabled' => (bool) ($data['enabled'] ?? true),
+            'timezone' => $data['timezone'], 'next_run_at' => $next, 'enabled' => $enabled,
         ];
     }
 
@@ -107,10 +111,5 @@ final class ReportScheduleService
         }
 
         return $attributes;
-    }
-
-    private function authorizeClass(User $actor, SchoolClass $class): void
-    {
-        abort_unless($actor->role === 'ADMIN' || ($actor->role === 'TEACHER' && $class->teacher_id === $actor->id), 403);
     }
 }
