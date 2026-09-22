@@ -235,6 +235,53 @@ it('computes correct all-fail (0%) scenario', function () {
     expect($result['exams'][0]['stats']['median'])->toBe(10.00);
 });
 
+it('separates scored finalized chart measures from legacy aggregates', function () {
+    config()->set('reports.pass_rate_threshold', 0.6);
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Charts', 'teacher_id' => $teacher->id, 'invitation_code' => 'CHARTS']);
+    $exam = Exam::create(['class_id' => $class->id, 'title' => 'Mixed', 'max_score' => 10, 'duration_minutes' => 10]);
+
+    foreach ([[6, true], [0, true], [null, true], [10, false], [null, false]] as [$score, $finished]) {
+        StudentAttempt::create([
+            'student_id' => User::factory()->create(['role' => 'STUDENT'])->id,
+            'exam_id' => $exam->id, 'score_obtained' => $score,
+            'started_at' => now(), 'finished_at' => $finished ? now() : null,
+        ]);
+    }
+
+    $entry = app(ClassReportService::class)->generate($class)['exams'][0];
+
+    expect($entry)->toHaveKey('chart');
+    expect($entry['chart'])->toBe(['attempts_count' => 5, 'scored_attempts_count' => 2, 'scored_pass_rate' => 50.0]);
+    expect($entry['stats'])->toBe(['attempts_count' => 5, 'avg_score' => 3.2, 'pass_rate' => 40.0, 'median' => 0.0]);
+});
+
+it('distinguishes zero scored pass rate from absent chart data', function (?float $score, bool $finished, bool $hasAttempt, ?float $rate) {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Sparse', 'teacher_id' => $teacher->id, 'invitation_code' => 'SPARSE']);
+    $exam = Exam::create(['class_id' => $class->id, 'title' => 'Only exam', 'max_score' => 10, 'duration_minutes' => 10]);
+    if ($hasAttempt) {
+        StudentAttempt::create([
+            'student_id' => User::factory()->create(['role' => 'STUDENT'])->id,
+            'exam_id' => $exam->id, 'score_obtained' => $score,
+            'started_at' => now(), 'finished_at' => $finished ? now() : null,
+        ]);
+    }
+
+    $entry = app(ClassReportService::class)->generate($class)['exams'][0];
+    expect($entry)->toHaveKey('chart');
+    expect($entry['chart'])->toBe([
+        'attempts_count' => $hasAttempt ? 1 : 0,
+        'scored_attempts_count' => $rate === null ? 0 : 1,
+        'scored_pass_rate' => $rate,
+    ]);
+})->with([
+    'completed zero score' => [0.0, true, true, 0.0],
+    'completed missing score' => [null, true, true, null],
+    'unfinished passing score' => [10.0, false, true, null],
+    'no attempts' => [null, false, false, null],
+]);
+
 it('returns teacher name from the loaded relationship', function () {
     $teacher = User::create(['name' => 'Alice Teacher', 'email' => 'alice@test.com', 'password' => 'password', 'role' => 'TEACHER']);
     $class = SchoolClass::create(['title' => 'Teacher Test', 'teacher_id' => $teacher->id, 'invitation_code' => 'TEACH']);

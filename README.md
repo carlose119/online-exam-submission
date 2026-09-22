@@ -181,6 +181,19 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 - **Attempt start:** **Started from** and **Started until** are inclusive `started_at` bounds, normalized to canonical UTC before filtering.
 - **Controls and output:** Choose **Filters** to apply or **Clear filters** to restore the full report. The same snapshot drives the page, PDF, XLSX, and queued output; empty filters preserve the unfiltered report.
 
+### Report visualizations
+
+The interactive class report compares exams with server-rendered bars and readable numeric labels. Apply **Filters** to update both charts and the retained **Exam Results** tables; no chart library is required.
+
+| Chart | Measure and scale |
+|---|---|
+| Attempts per exam | All matching attempts, including in-progress attempts. Bars share a scale from zero to the largest matching exam count (minimum scale maximum: one). |
+| Scored pass rate per exam | Passing finalized attempts divided by finalized attempts with a recorded score, using the configured pass threshold. Bars use a fixed 0–100% scale; labels include the scored denominator. |
+
+**No scored data is not a failure rate.** Missing scores and unfinished attempts are excluded from the scored denominator; a finalized zero score is included and can produce `0.00%`. Exams with no matching attempts remain visible with zero attempts and **No scored data**. An empty exam list displays filter-aware empty text.
+
+The existing summary, table, PDF, and Excel rates still use all matching attempts, including the legacy conversion of missing scores to zero. They may differ from the scored chart rate; this slice does not change export values or add charts to exports. For example, one passing finalized attempt and one unscored in-progress attempt produce a 100% scored chart rate but a 50% legacy rate.
+
 ### Report schedules
 
 1. Open **Report schedules**, create a schedule, and choose a class, PDF/XLSX output, optional report filters, recurrence, local time, IANA timezone, and enabled state.

@@ -20,7 +20,8 @@ class ClassReportService
      *     exams: list<array{
      *         exam: array{id: int, title: string, max_score: int, duration_minutes: int},
      *         attempts: list<array{student_name: string, score_obtained: float, finished_at: ?string}>,
-     *         stats: array{attempts_count: int, avg_score: float, pass_rate: float, median: float}
+     *         stats: array{attempts_count: int, avg_score: float, pass_rate: float, median: float},
+     *         chart: array{attempts_count: int, scored_attempts_count: int, scored_pass_rate: ?float}
      *     }>,
      *     overall_stats: array{total_attempts: int, avg_score: float, pass_rate: float}
      * }
@@ -58,8 +59,14 @@ class ClassReportService
 
             $attemptDetails = [];
             $scores = [];
+            $scoredFinalizedScores = [];
 
             foreach ($attempts as $attempt) {
+                // Preserve missing-score identity before the legacy float conversion.
+                if ($attempt->finished_at !== null && $attempt->score_obtained !== null) {
+                    $scoredFinalizedScores[] = (float) $attempt->score_obtained;
+                }
+
                 $score = (float) $attempt->score_obtained;
                 $scores[] = $score;
                 $allScores[] = $score;
@@ -92,6 +99,13 @@ class ClassReportService
                 ],
                 'attempts' => $attemptDetails,
                 'stats' => $stats,
+                'chart' => [
+                    'attempts_count' => $attemptsCount,
+                    'scored_attempts_count' => count($scoredFinalizedScores),
+                    'scored_pass_rate' => $scoredFinalizedScores === []
+                        ? null
+                        : $this->passRate($scoredFinalizedScores, (int) $exam->max_score, $passThreshold),
+                ],
             ];
         }
 
