@@ -95,6 +95,31 @@ it('applies and clears page filters and uses the filtered threshold for both job
         ->assertSet('reportData.overall_stats.total_attempts', 3);
 });
 
+it('refreshes chart values with combined filters and clears them on the real page', function () {
+    extract(filterFixture());
+    $this->actingAs($teacher);
+    Livewire::test(ClassReport::class, ['record' => $class])
+        ->assertSet('reportData.exams.1.chart.scored_pass_rate', 50.0)
+        ->callAction('filters', data: [
+            'exam_ids' => [(string) $exam->id], 'student_ids' => [(string) $student->id],
+            'statuses' => ['passed'], 'started_from' => '2026-06-15 12:00:00', 'started_until' => '2026-06-15 12:00:00',
+        ])
+        ->assertSet('reportData.exams.0.chart.attempts_count', 1)
+        ->assertSet('reportData.exams.0.chart.scored_pass_rate', 100.0)
+        ->assertSee('100.00% — 1 scored attempts')->assertSee('Finished At')
+        ->assertDontSee($excluded->name)->assertDontSee($foreign->name)
+        ->callAction('filters', data: ['exam_ids' => [(string) $exam->id], 'statuses' => ['in_progress']])
+        ->assertSet('reportData.exams.0.chart.attempts_count', 0)
+        ->assertSet('reportData.exams.0.chart.scored_pass_rate', null)
+        ->assertSee('No scored data')->assertSee('No attempts match the current report filters.')
+        ->callAction('clearFilters')
+        ->assertSet('reportData.exams.0.chart.attempts_count', 1)
+        ->assertSet('reportData.exams.0.chart.scored_pass_rate', null)
+        ->assertSet('reportData.exams.1.chart.scored_pass_rate', 50.0)
+        ->assertSee('50.00% — 2 scored attempts');
+
+});
+
 it('passes canonical filters through both queued publishers and rejects tampering', function (string $jobClass, string $format) {
     extract(filterFixture());
     $filters = ReportFilters::from(['version' => 1, 'exam_ids' => [$exam->id], 'statuses' => ['passed']], $class)->toArray();

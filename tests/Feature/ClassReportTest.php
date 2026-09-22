@@ -138,6 +138,57 @@ it('report data shows per-exam and overall stats', function () {
     expect($result['overall_stats']['total_attempts'])->toBe(3);
 });
 
+it('renders accessible sparse charts with escaped labels and retained tables', function (?float $score, bool $finished, bool $hasAttempt, string $text) {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($teacher);
+    $title = '<script>alert("exam")</script>';
+    $exam = Exam::create(['class_id' => $class->id, 'title' => $title, 'max_score' => 10, 'duration_minutes' => 10]);
+    if ($hasAttempt) {
+        StudentAttempt::create([
+            'student_id' => User::factory()->create(['name' => 'Chart Student', 'role' => 'STUDENT'])->id,
+            'exam_id' => $exam->id, 'score_obtained' => $score,
+            'started_at' => now(), 'finished_at' => $finished ? now() : null,
+        ]);
+    }
+
+    $this->actingAs($teacher);
+    $page = Livewire::test(ClassReport::class, ['record' => $class])
+        ->assertSee('Attempts per exam')->assertSee('Scored pass rate per exam')
+        ->assertSee('Only finalized attempts with a recorded score')
+        ->assertSee($text)->assertSee('Exam Results')
+        ->assertSeeHtml(e($title))->assertDontSeeHtml($title)
+        ->assertSeeHtml('aria-hidden="true"');
+    preg_match_all('/data-chart-bar="[^"]+" style="[^"]*width: ([0-9.]+)%;/', $page->html(), $widths);
+    expect($widths[1])->toHaveCount($finished && $score !== null ? 2 : 1);
+    foreach ($widths[1] as $width) {
+        expect((float) $width)->toBeGreaterThanOrEqual(0)->toBeLessThanOrEqual(100);
+    }
+    if ($hasAttempt) {
+        $page->assertSee('Chart Student')->assertSee('Finished At')->assertSeeHtml('<table');
+    } else {
+        $page->assertSee('0 attempts')->assertSee('No attempts match the current report filters.');
+    }
+})->with([
+    'completed failure' => [0.0, true, true, '0.00% — 1 scored attempts'],
+    'completed pass' => [10.0, true, true, '100.00% — 1 scored attempts'],
+    'completed unscored' => [null, true, true, 'No scored data'],
+    'in progress' => [10.0, false, true, 'No scored data'],
+    'untaken exam' => [null, false, false, 'No scored data'],
+]);
+
+it('renders an accurate empty report without chart bars', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($teacher);
+    $this->actingAs($teacher);
+
+    Livewire::test(ClassReport::class, ['record' => $class])
+        ->assertSee('No exams match the current report filters.')
+        ->assertSee('Exam Results')->assertDontSeeHtml('data-chart-bar')
+        ->callAction('filters', data: ['statuses' => ['passed']])
+        ->assertSee('No exams match the current report filters.')
+        ->assertDontSeeHtml('data-chart-bar');
+});
+
 // ---------------------------------------------------------------------------
 // Sync Download: PDF
 // ---------------------------------------------------------------------------
