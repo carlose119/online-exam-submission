@@ -12,6 +12,7 @@ use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -24,6 +25,7 @@ use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class MeetingResource extends Resource
@@ -60,6 +62,7 @@ class MeetingResource extends Resource
                     ->maxLength(255),
 
                 DateTimePicker::make('scheduled_at')
+                    ->live()
                     ->label('Scheduled At')
                     ->required(),
 
@@ -81,15 +84,18 @@ class MeetingResource extends Resource
                     ->columnSpanFull(),
 
                 Toggle::make('is_recurring')
+                    ->visibleOn('create')
                     ->label('Is recurring?')
                     ->live()
                     ->default(false),
 
                 Section::make('Make this recurring')
+                    ->columnSpanFull()
                     ->columns(3)
-                    ->visible(fn (Get $get): bool => (bool) $get('is_recurring'))
+                    ->visible(fn (Get $get, string $operation): bool => $operation === 'create' && (bool) $get('is_recurring'))
                     ->schema([
                         Select::make('frequency')
+                            ->live()
                             ->options([
                                 'weekly' => 'Weekly',
                                 'biweekly' => 'Biweekly',
@@ -98,13 +104,26 @@ class MeetingResource extends Resource
                             ->default('weekly')
                             ->required(),
 
+                        Select::make('days_of_week')
+                            ->label('Weekdays')
+                            ->helperText('Leave blank to repeat the start weekday. Selecting days may move the first meeting forward; the preview includes every instance.')
+                            ->multiple()
+                            ->live()
+                            ->options([1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'])
+                            ->visible(fn (Get $get): bool => in_array($get('frequency'), ['weekly', 'biweekly'], true))
+                            ->rule('array')
+                            ->rule('max:7')
+                            ->rule('distinct'),
+
                         TextInput::make('interval')
+                            ->live()
                             ->numeric()
                             ->default(1)
                             ->minValue(1)
                             ->required(),
 
                         TextInput::make('count')
+                            ->live()
                             ->label('Number of instances')
                             ->numeric()
                             ->default(12)
@@ -112,8 +131,49 @@ class MeetingResource extends Resource
                             ->maxValue(52)
                             ->required()
                             ->helperText('Total instances including the first one.'),
+
+                        Placeholder::make('occurrence_preview')
+                            ->label('Occurrence dates')
+                            ->content(fn (Get $get): string => implode(', ', static::previewDates($get)))
+                            ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    private static function previewDates(Get $get): array
+    {
+        return static::occurrencePreview([
+            'is_recurring' => $get('is_recurring'),
+            'scheduled_at' => $get('scheduled_at'),
+            'frequency' => $get('frequency'),
+            'interval' => $get('interval'),
+            'count' => $get('count'),
+            'days_of_week' => $get('days_of_week'),
+        ]);
+    }
+
+    public static function occurrencePreview(array $data): array
+    {
+        if (! ($data['is_recurring'] ?? false) || empty($data['scheduled_at']) ||
+            ! is_numeric($data['count'] ?? null) || (int) $data['count'] < 1 || (int) $data['count'] > 52 ||
+            ! is_numeric($data['interval'] ?? null) || (int) $data['interval'] < 1) {
+            return [];
+        }
+
+        try {
+            $start = Carbon::parse($data['scheduled_at']);
+        } catch (\Exception) {
+            return [];
+        }
+
+        return array_map(
+            fn (Carbon $date) => $date->format('Y-m-d H:i:s'),
+            Meeting::occurrenceDates($start, [
+                'frequency' => $data['frequency'] ?? 'weekly',
+                'interval' => $data['interval'],
+                'days_of_week' => $data['days_of_week'] ?? null,
+            ], (int) $data['count'])
+        );
     }
 
     public static function table(Table $table): Table

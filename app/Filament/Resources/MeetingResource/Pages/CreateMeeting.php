@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\MeetingResource\Pages;
 
 use App\Filament\Resources\MeetingResource;
+use App\Models\Meeting;
 use App\Services\MeetingScheduledNotificationDispatcher;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Carbon;
 
 class CreateMeeting extends CreateRecord
 {
@@ -26,14 +28,20 @@ class CreateMeeting extends CreateRecord
                 'interval' => (int) ($data['interval'] ?? 1),
                 'count' => (int) ($data['count'] ?? 12),
                 'until' => null,
-                'days_of_week' => null,
+                'days_of_week' => in_array($data['frequency'] ?? 'weekly', ['weekly', 'biweekly'], true)
+                    ? ($data['days_of_week'] ?? null) : null,
             ]);
         } else {
             $data['recurrence_rule'] = null;
         }
 
+        if ($isRecurring) {
+            $first = Meeting::occurrenceDates(Carbon::parse($data['scheduled_at']), json_decode($data['recurrence_rule'], true), 1)[0];
+            $data['scheduled_at'] = $first->format('Y-m-d H:i:s');
+        }
+
         // Remove virtual form fields — they don't exist on the model.
-        unset($data['is_recurring'], $data['frequency'], $data['interval'], $data['count']);
+        unset($data['is_recurring'], $data['frequency'], $data['interval'], $data['count'], $data['days_of_week']);
 
         return $data;
     }

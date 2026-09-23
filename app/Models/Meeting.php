@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 #[Fillable(['class_id', 'title', 'scheduled_at', 'duration_minutes', 'meeting_url', 'agenda', 'recurrence_rule', 'parent_id'])]
 class Meeting extends Model
@@ -126,6 +127,60 @@ class Meeting extends Model
         }
     }
 
+    /** @return array<int, Carbon> */
+    public static function occurrenceDates(Carbon $start, array $rule, int $count): array
+    {
+        if ($count < 1) {
+            return [];
+        }
+
+        $frequency = $rule['frequency'] ?? 'weekly';
+        $interval = max(1, (int) ($rule['interval'] ?? 1));
+        $days = $rule['days_of_week'] ?? null;
+        $days = is_array($days) ? array_values(array_unique(array_filter(array_map(
+            static fn ($day) => is_int($day) || is_string($day)
+                ? filter_var($day, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 7]]) : false,
+            $days
+        ), static fn ($day) => $day !== false))) : [];
+        sort($days);
+
+        if ($days && in_array($frequency, ['weekly', 'biweekly'], true)) {
+            $first = $start->copy();
+            while (! in_array($first->isoWeekday(), $days, true)) {
+                $first->addDay();
+            }
+
+            $dates = [$first];
+            $week = $first->copy()->startOfWeek(Carbon::MONDAY);
+            $step = $interval * ($frequency === 'biweekly' ? 2 : 1);
+            while (count($dates) < $count) {
+                foreach ($days as $day) {
+                    $date = $week->copy()->addDays($day - 1)->setTimeFrom($first);
+                    if ($date->gt($first)) {
+                        $dates[] = $date;
+                        if (count($dates) === $count) {
+                            break;
+                        }
+                    }
+                }
+                $week->addWeeks($step);
+            }
+
+            return $dates;
+        }
+
+        $dates = [$start->copy()];
+        for ($i = 1; $i < $count; $i++) {
+            $dates[] = match ($frequency) {
+                'biweekly' => $start->copy()->addWeeks($interval * $i * 2),
+                'monthly' => $start->copy()->addMonthsNoOverflow($interval * $i),
+                default => $start->copy()->addWeeks($interval * $i),
+            };
+        }
+
+        return $dates;
+    }
+
     /**
      * Eagerly materialize N-1 child meeting instances from this parent's
      * recurrence rule. Returns the collection of created children.
@@ -138,17 +193,9 @@ class Meeting extends Model
             return new Collection;
         }
 
-        $frequency = $rule['frequency'] ?? 'weekly';
-        $interval = (int) ($rule['interval'] ?? 1);
-        $childCount = $count - 1;
         $children = new Collection;
 
-        for ($i = 1; $i <= $childCount; $i++) {
-            $childScheduledAt = match ($frequency) {
-                'biweekly' => $this->scheduled_at->copy()->addWeeks($interval * $i * 2),
-                'monthly' => $this->scheduled_at->copy()->addMonthsNoOverflow($interval * $i),
-                default => $this->scheduled_at->copy()->addWeeks($interval * $i), // weekly
-            };
+        foreach (array_slice(static::occurrenceDates($this->scheduled_at, $rule, $count), 1) as $childScheduledAt) {
 
             $children->push(static::create([
                 'class_id' => $this->class_id,
