@@ -25,3 +25,5 @@ Thumbs.db
 
 # Codegraph — local index, regenerated on demand
 /.codegraph
+# Local Pi runtime state
+.atl/
