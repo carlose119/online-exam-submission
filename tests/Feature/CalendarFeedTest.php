@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CalendarFeedHeaderBag;
 use App\Livewire\Dashboard;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
@@ -71,10 +72,13 @@ it('returns an unauthenticated multi-event feed with exact no-cache headers', fu
         ->assertHeader('Content-Disposition', 'inline; filename="calendar.ics"')
         ->assertHeader('Cache-Control', 'no-store, max-age=0')
         ->assertHeader('Pragma', 'no-cache')
+        ->assertHeaderMissing('ETag')
+        ->assertHeaderMissing('Last-Modified')
         ->assertSee($past->title)
         ->assertSee($future->title);
 
-    expect(substr_count($response->getContent(), 'BEGIN:VCALENDAR'))->toBe(1)
+    expect($response->headers)->toBeInstanceOf(CalendarFeedHeaderBag::class)
+        ->and(substr_count($response->getContent(), 'BEGIN:VCALENDAR'))->toBe(1)
         ->and(substr_count($response->getContent(), 'BEGIN:VEVENT'))->toBe(2)
         ->and($response->getContent())->toContain("\r\n");
 
