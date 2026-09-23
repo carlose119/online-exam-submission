@@ -24,16 +24,15 @@ class CalendarFeedController extends Controller
             ->get()
             ->flatMap(fn ($class) => $class->meetings);
 
-        return new Response(
-            app(IcalBuilder::class)->buildMany($meetings),
-            200,
-            new CalendarFeedHeaderBag([
-                'Content-Type' => 'text/calendar; charset=utf-8',
-                'Content-Disposition' => 'inline; filename="calendar.ics"',
-                'Cache-Control' => 'no-store, max-age=0',
-                'Pragma' => 'no-cache',
-            ]),
-        );
+        $response = new Response(app(IcalBuilder::class)->buildMany($meetings));
+        $response->headers = new CalendarFeedHeaderBag([
+            'Content-Type' => 'text/calendar; charset=utf-8',
+            'Content-Disposition' => 'inline; filename="calendar.ics"',
+            'Cache-Control' => 'no-store, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+
+        return $response;
     }
 }
 
