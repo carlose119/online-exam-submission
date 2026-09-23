@@ -93,6 +93,8 @@ Install these project-supported tools before resolving dependencies:
 
 For a production-like local run, use `npm run build` and serve Laravel without the Vite development server. Run `php artisan queue:work` as a separately supervised process when `QUEUE_CONNECTION` is asynchronous; otherwise larger report exports remain pending. Deployment must provide a writable `storage` tree, the public storage link, migrated database, built `public/build` assets, and correctly configured `APP_URL`.
 
+For a deployment update that changes `composer.lock`, run `composer install` from the deployed release before restarting application and queue processes.
+
 ### Production mail operations
 
 Use generic SMTP credentials supplied by the deployment secret store. Production must use an HTTPS public application URL and a from address on a domain the organization controls:
@@ -179,13 +181,26 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 ### Report filters
 - **Available:** Filter by one or more exams, students, or attempt statuses: **In progress**, **Passed**, or **Failed**.
 - **Attempt start:** **Started from** and **Started until** are inclusive `started_at` bounds, normalized to canonical UTC before filtering.
-- **Controls and output:** Choose **Filters** to apply or **Clear filters** to restore the full report. The same snapshot drives the page, PDF, XLSX, and queued output; empty filters preserve the unfiltered report.
+- **Controls and output:** Choose **Filters** to apply or **Clear filters** to restore the full report; empty filters preserve the unfiltered report. The selected filters apply to the page and are carried to PDF/XLSX generation, including queued exports. Queued jobs generate the report from current authorized class data when they run.
+
+### Report visualizations
+
+The interactive class report compares exams with server-rendered bars and readable numeric labels. Apply **Filters** to update both charts and the retained **Exam Results** tables; no chart library is required.
+
+| Chart | Measure and scale |
+|---|---|
+| Attempts per exam | All matching attempts, including in-progress attempts. Bars share a scale from zero to the largest matching exam count (minimum scale maximum: one). |
+| Scored pass rate per exam | Passing finalized attempts divided by finalized attempts with a recorded score, using the configured pass threshold. Bars use a fixed 0–100% scale; labels include the scored denominator. |
+
+**No scored data is not a failure rate.** Missing scores and unfinished attempts are excluded from the scored denominator; a finalized zero score is included and can produce `0.00%`. Exams with no matching attempts remain visible with zero attempts and **No scored data**. An empty exam list displays filter-aware empty text.
+
+The existing summary, table, PDF, and Excel rates still use all matching attempts, including the legacy conversion of missing scores to zero. They may differ from the scored chart rate; this slice does not change export values or add charts to exports. For example, one passing finalized attempt and one unscored in-progress attempt produce a 100% scored chart rate but a 50% legacy rate.
 
 ### Report schedules
 
 1. Open **Report schedules**, create a schedule, and choose a class, PDF/XLSX output, optional report filters, recurrence, local time, IANA timezone, and enabled state.
 2. Save it, then use **Edit**, **Enable/Disable**, or **Delete** from the owner-only list as requirements change.
-3. Review **Next run (UTC)** to confirm how the local wall time was resolved. The console scheduler claims due occurrences every minute; production must run `php artisan schedule:run` every minute and supervise the queue worker.
+3. Review **Next run (UTC)** to confirm how the local wall time was resolved. The console scheduler claims due occurrences every minute. During local development, run `php artisan schedule:work` separately; `composer run dev` starts the queue listener but not the scheduler. In production, run `php artisan schedule:run` every minute and supervise the queue worker.
 
 Daily schedules target every local day; weekly schedules target the selected weekday. Daylight-saving gaps are skipped, while an ambiguous repeated time uses its earliest UTC instant. Teachers can schedule only classes they currently own. Administrators may choose any class, but every user sees and mutates only schedules they created; class authority, owner, filters, and selected identifiers are rechecked for every change.
 
@@ -230,7 +245,7 @@ vendor/bin/pest tests/Feature/ExamRetakeTest.php tests/Feature/StudentDashboardT
 vendor/bin/pest --configuration=phpunit.xml
 ```
 
-The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The latest local full-suite result is **406 tests and 1,545 assertions**.
+The normal Pest configuration uses SQLite `:memory:` and does not require MariaDB. The independently verified full-suite result on 2026-09-22 was **494 tests and 1,956 assertions**; use the test runner's summary for the current counts.
 
 For a fresh installation, also confirm the application can boot and the schema is current:
 
