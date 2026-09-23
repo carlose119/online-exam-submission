@@ -1,10 +1,137 @@
 <?php
 
+use App\Filament\Resources\MeetingResource;
+use App\Filament\Resources\MeetingResource\Pages\CreateMeeting;
+use App\Filament\Resources\MeetingResource\Pages\EditMeeting;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\User;
+use Filament\Schemas\Components\Section;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Livewire\Livewire;
+
+it('spans the create form recurrence section across the full width', function () {
+    $teacher = User::create(['name' => 'Layout Teacher', 'email' => 'layout@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $this->actingAs($teacher);
+
+    $form = Livewire::test(CreateMeeting::class)->fillForm(['is_recurring' => true]);
+    $sections = array_values(array_filter(
+        $form->instance()->form->getComponents(),
+        fn ($component) => $component instanceof Section && $component->getHeading() === 'Make this recurring',
+    ));
+
+    expect($sections)->toHaveCount(1);
+    expect($sections[0]->getColumnSpan('default'))->toBe('full');
+});
+
+it('previews and creates selected weekdays from the next match through eligible weeks', function () {
+    $teacher = User::create(['name' => 'Weekday Teacher', 'email' => 'weekday@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Weekday Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'WEEKDAY1']);
+    $this->actingAs($teacher);
+
+    $form = Livewire::test(CreateMeeting::class)->fillForm([
+        'class_id' => $class->id,
+        'title' => 'Selected days',
+        'scheduled_at' => '2026-08-02 15:30:00', // Sunday; first selected day is Monday.
+        'is_recurring' => true,
+        'frequency' => 'biweekly',
+        'interval' => 2,
+        'count' => 4,
+        'days_of_week' => [1, 3],
+    ]);
+
+    $dates = ['2026-08-03 15:30:00', '2026-08-05 15:30:00', '2026-08-31 15:30:00', '2026-09-02 15:30:00'];
+    foreach ($dates as $date) {
+        $form->assertSee($date);
+    }
+    $form->call('create')->assertHasNoErrors();
+
+    $parent = Meeting::whereNull('parent_id')->where('title', 'Selected days')->firstOrFail();
+    expect($parent->scheduled_at->format('Y-m-d H:i:s'))->toBe($dates[0]);
+    expect($parent->recurrenceRule()['days_of_week'])->toEqual([1, 3]);
+    expect($parent->children->map(fn (Meeting $meeting) => $meeting->scheduled_at->format('Y-m-d H:i:s'))->all())->toBe(array_slice($dates, 1));
+});
+
+it('rejects invalid weekday selections during real creation', function () {
+    $teacher = User::create(['name' => 'Invalid Days Teacher', 'email' => 'invaliddays@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Invalid Days Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'BADWEEK1']);
+    $this->actingAs($teacher);
+
+    foreach ([['9'], ['Monday'], [1, 1]] as $days) {
+        Livewire::test(CreateMeeting::class)->fillForm([
+            'class_id' => $class->id, 'title' => 'Invalid days', 'scheduled_at' => '2026-08-02 15:30:00',
+            'is_recurring' => true, 'frequency' => 'weekly', 'interval' => 1, 'count' => 2, 'days_of_week' => $days,
+        ])->call('create')->assertHasErrors();
+    }
+    expect(Meeting::count())->toBe(0);
+});
+
+it('keeps blank weekdays and hidden monthly weekdays on their legacy schedules', function () {
+    $teacher = User::create(['name' => 'Legacy Days Teacher', 'email' => 'legacydays@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Legacy Days Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'LEGWEEK1']);
+    $this->actingAs($teacher);
+
+    foreach ([
+        ['frequency' => 'weekly', 'scheduled_at' => '2026-08-01 10:00:00', 'days_of_week' => [], 'dates' => ['2026-08-01', '2026-08-08']],
+        ['frequency' => 'monthly', 'scheduled_at' => '2026-01-31 10:00:00', 'days_of_week' => [2], 'dates' => ['2026-01-31', '2026-02-28']],
+    ] as $case) {
+        $form = Livewire::test(CreateMeeting::class)->fillForm([
+            'class_id' => $class->id, 'title' => $case['frequency'], 'scheduled_at' => $case['scheduled_at'],
+            'is_recurring' => true, 'frequency' => $case['frequency'], 'interval' => 1, 'count' => 2,
+            'days_of_week' => $case['days_of_week'],
+        ]);
+        foreach ($case['dates'] as $date) {
+            $form->assertSee($date);
+        }
+        $form->call('create')->assertHasNoErrors();
+        $parent = Meeting::where('title', $case['frequency'])->whereNull('parent_id')->firstOrFail();
+        expect($parent->scheduled_at->format('Y-m-d'))->toBe($case['dates'][0]);
+        expect($parent->children->first()->scheduled_at->format('Y-m-d'))->toBe($case['dates'][1]);
+        expect($parent->recurrenceRule()['days_of_week'])->toBe($case['frequency'] === 'monthly' ? null : []);
+    }
+});
+
+it('edits a recurring parent without exposing create-only recurrence controls or adding occurrences', function () {
+    $teacher = User::create(['name' => 'Edit Days Teacher', 'email' => 'editdays@test.com', 'password' => 'password', 'role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Edit Days Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'EDTWEEK1']);
+    $this->actingAs($teacher);
+    $parent = Meeting::create([
+        'class_id' => $class->id, 'title' => 'Before edit', 'scheduled_at' => '2026-08-03 10:00:00',
+        'recurrence_rule' => json_encode(['frequency' => 'weekly', 'interval' => 1, 'count' => 2, 'days_of_week' => [1, 3]]),
+    ]);
+    $parent->generateInstances(2);
+    $rule = $parent->recurrence_rule;
+
+    Livewire::test(EditMeeting::class, ['record' => $parent->id])
+        ->assertDontSee('Is recurring?')
+        ->assertDontSee('Weekdays')
+        ->fillForm(['title' => 'After edit'])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($parent->fresh()->recurrence_rule)->toBe($rule);
+    expect($parent->fresh()->children)->toHaveCount(1);
+    expect(Meeting::count())->toBe(2);
+});
+
+it('anchors weekly intervals after the first Sunday match and keeps count one', function () {
+    $start = Carbon::parse('2026-08-01 09:15:00');
+    $rule = ['frequency' => 'weekly', 'interval' => 2, 'days_of_week' => [7, 2]];
+    $dates = fn (int $count) => array_map(fn (Carbon $date) => $date->format('Y-m-d H:i:s'), Meeting::occurrenceDates($start, $rule, $count));
+
+    expect($dates(1))->toBe(['2026-08-02 09:15:00']);
+    expect($dates(4))->toBe(['2026-08-02 09:15:00', '2026-08-11 09:15:00', '2026-08-16 09:15:00', '2026-08-25 09:15:00']);
+    $previousLocale = Carbon::getLocale();
+    try {
+        Carbon::setLocale('en_US');
+        expect($dates(4))->toBe(['2026-08-02 09:15:00', '2026-08-11 09:15:00', '2026-08-16 09:15:00', '2026-08-25 09:15:00']);
+    } finally {
+        Carbon::setLocale($previousLocale);
+    }
+    expect(Meeting::occurrenceDates($start, ['frequency' => 'monthly', 'interval' => 1, 'days_of_week' => [2]], 2)[1]->format('Y-m-d'))->toBe('2026-09-01');
+    expect(MeetingResource::occurrencePreview(['is_recurring' => true, 'scheduled_at' => '2026-08-01', 'count' => '', 'interval' => 1]))->toBe([]);
+});
 
 // ---------------------------------------------------------------------------
 // 1. Migration columns exist
