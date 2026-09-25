@@ -6,7 +6,9 @@ use App\Exports\ClassReportExcelExport;
 use App\Models\SchoolClass;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Maatwebsite\Excel\Facades\Excel;
+use RuntimeException;
 
 class ReportFormatService
 {
@@ -20,12 +22,29 @@ class ReportFormatService
     {
         $filename ??= $this->filename($class, 'pdf');
 
-        $pdfContent = Pdf::loadView('reports.class-pdf', [
-            'data' => $data,
-            'class' => $class,
-        ])
-            ->setPaper('a4', 'landscape')
-            ->output();
+        $template = 'reports.class-pdf';
+        $compiledPath = app('blade.compiler')->getCompiledPath(View::getFinder()->find($template));
+        $lockPath = $compiledPath.'.lock';
+        if (! is_dir(dirname($lockPath)) && ! app('files')->makeDirectory(dirname($lockPath), 0755, true, true)) {
+            throw new RuntimeException("Unable to create report view lock directory: {$lockPath}");
+        }
+
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) {
+            throw new RuntimeException("Unable to open report view lock: {$lockPath}");
+        }
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new RuntimeException("Unable to acquire report view lock: {$lockPath}");
+            }
+            // Blade can compile and include the same file during render; protect both.
+            $html = View::make($template, ['data' => $data, 'class' => $class])->render();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+
+        $pdfContent = Pdf::loadHTML($html)->setPaper('a4', 'landscape')->output();
 
         Storage::disk(config('reports.storage_disk'))
             ->put($filename, $pdfContent);

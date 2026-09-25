@@ -5,8 +5,10 @@ use App\Models\User;
 use App\Services\ReportScheduleService;
 use App\Values\ReportFilters;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Tests\Support\ExamConcurrencyHarness;
 
 beforeEach(function () {
@@ -67,28 +69,57 @@ it('serializes duplicate occurrence claims and deliveries', function () {
     $class = SchoolClass::create(['teacher_id' => $teacher->id, 'title' => 'Scheduled race', 'invitation_code' => 'RUNRACE1']);
     $schedule = app(ReportScheduleService::class)->create($teacher, $class->id, ['format' => 'pdf', 'filters' => ReportFilters::EMPTY, 'recurrence' => 'daily', 'local_time' => '09:30', 'timezone' => 'UTC']);
     DB::table('report_schedules')->where('id', $schedule->id)->update(['next_run_at' => now()->subDays(10)]);
+    $claimWorker = null;
     DB::beginTransaction();
-    User::query()->lockForUpdate()->findOrFail($teacher->id);
-    $worker = ExamConcurrencyHarness::start('claim-reports');
-    $ready = ExamConcurrencyHarness::message($worker);
-    expect(app(ReportScheduleService::class)->dispatchDue())->toBe(1);
-    ExamConcurrencyHarness::observeLockWait($worker, $ready['connection_id']);
-    DB::commit();
-    expect(ExamConcurrencyHarness::message($worker)['claimed'])->toBe(0);
-    ExamConcurrencyHarness::stop($worker);
+    try {
+        User::query()->lockForUpdate()->findOrFail($teacher->id);
+        $claimWorker = ExamConcurrencyHarness::start('claim-reports');
+        $ready = ExamConcurrencyHarness::message($claimWorker);
+        expect(app(ReportScheduleService::class)->dispatchDue())->toBe(1);
+        ExamConcurrencyHarness::observeLockWait($claimWorker, $ready['connection_id']);
+        DB::commit();
+        expect(ExamConcurrencyHarness::message($claimWorker))->toMatchArray(['event' => 'result', 'claimed' => 0]);
+    } finally {
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+        ExamConcurrencyHarness::stop($claimWorker);
+    }
+
     $run = DB::table('report_runs')->first();
+    expect($run)->not->toBeNull();
+    $compiled = app('blade.compiler')->getCompiledPath(View::getFinder()->find('reports.class-pdf'));
+    if (File::exists($compiled) && ! File::delete($compiled)) {
+        throw new RuntimeException('Unable to clear the report compiled view for the cold worker test.');
+    }
+    expect(File::exists($compiled))->toBeFalse();
+
     $barrier = tempnam(sys_get_temp_dir(), 'report-barrier-');
+    if ($barrier === false) {
+        throw new RuntimeException('Unable to create the report worker barrier.');
+    }
     $workers = [];
     try {
-        $workers = array_map(fn () => ExamConcurrencyHarness::start('run-report', $run->id, $barrier, 8), range(1, 8));
-        foreach ($workers as &$worker) {
-            expect(ExamConcurrencyHarness::message($worker)['event'])->toBe('ready')
-                ->and(ExamConcurrencyHarness::message($worker)['status'])->toBe('completed');
+        foreach (range(1, 8) as $index) {
+            $workers[$index] = ExamConcurrencyHarness::start('run-report', $run->id, $barrier, 8);
         }
+        foreach ($workers as &$worker) {
+            expect(ExamConcurrencyHarness::message($worker))->toMatchArray(['event' => 'ready']);
+            $result = ExamConcurrencyHarness::message($worker);
+            if (($result['event'] ?? null) !== 'result' || ($result['status'] ?? null) !== 'completed') {
+                throw new RuntimeException('Report worker did not complete: '.json_encode($result, JSON_THROW_ON_ERROR));
+            }
+            expect($result)->toMatchArray(['event' => 'result', 'status' => 'completed']);
+        }
+        unset($worker);
     } finally {
-        array_walk($workers, fn (&$worker) => ExamConcurrencyHarness::stop($worker));
+        foreach ($workers as &$worker) {
+            ExamConcurrencyHarness::stop($worker);
+        }
+        unset($worker);
         @unlink($barrier);
     }
-    expect(DB::table('notifications')->count())->toBe(1)
+    expect(DB::table('report_runs')->where('id', $run->id)->value('status'))->toBe('completed')
+        ->and(DB::table('notifications')->count())->toBe(1)
         ->and(array_diff(Storage::disk('reports')->allFiles(), ['.gitkeep']))->toHaveCount(1);
 });

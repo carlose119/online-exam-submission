@@ -6,9 +6,13 @@ use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
+use App\Services\ClassReportService;
 use App\Services\ReportArtifactPublisher;
+use App\Services\ReportFormatService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
 function queuedReportClass(User $teacher): SchoolClass
@@ -19,6 +23,77 @@ function queuedReportClass(User $teacher): SchoolClass
         'invitation_code' => Str::random(8),
     ]);
 }
+
+it('holds the compiled report view lock throughout rendering and releases it before PDF output', function () {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $class = queuedReportClass(User::factory()->create(['role' => 'TEACHER']));
+    $compiled = app('blade.compiler')->getCompiledPath(View::getFinder()->find('reports.class-pdf'));
+    $lockPath = $compiled.'.lock';
+    $probes = [];
+
+    // A composer executes inside the real Blade render, not during PDF output.
+    View::composer('reports.class-pdf', function () use ($lockPath, &$probes): void {
+        $handle = fopen($lockPath, 'c');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to open report render lock probe.');
+        }
+        try {
+            $probes[] = flock($handle, LOCK_EX | LOCK_NB);
+        } finally {
+            if (end($probes) === true) {
+                flock($handle, LOCK_UN);
+            }
+            fclose($handle);
+        }
+    });
+
+    $originalPdf = Pdf::getFacadeRoot();
+    $unlockedAtPdfLoad = false;
+    Pdf::shouldReceive('loadHTML')->once()->andReturnUsing(function (string $html) use ($originalPdf, $lockPath, &$unlockedAtPdfLoad) {
+        $handle = fopen($lockPath, 'c');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to open report PDF boundary lock probe.');
+        }
+        try {
+            $unlockedAtPdfLoad = flock($handle, LOCK_EX | LOCK_NB);
+        } finally {
+            if ($unlockedAtPdfLoad) {
+                flock($handle, LOCK_UN);
+            }
+            fclose($handle);
+        }
+
+        return $originalPdf->loadHTML($html);
+    });
+
+    app(ReportFormatService::class)->toPdf(app(ClassReportService::class)->generate($class), $class);
+
+    expect($probes)->toBe([false])
+        ->and($unlockedAtPdfLoad)->toBeTrue();
+});
+
+it('releases the report view lock when rendering fails', function () {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    $class = queuedReportClass(User::factory()->create(['role' => 'TEACHER']));
+    $lockPath = app('blade.compiler')->getCompiledPath(View::getFinder()->find('reports.class-pdf')).'.lock';
+    View::composer('reports.class-pdf', function (): void {
+        throw new RuntimeException('Rendering failed');
+    });
+
+    expect(fn () => app(ReportFormatService::class)->toPdf([], $class))
+        ->toThrow(RuntimeException::class, 'Rendering failed');
+
+    $handle = fopen($lockPath, 'c');
+    try {
+        expect(flock($handle, LOCK_EX | LOCK_NB))->toBeTrue()
+            ->and(Storage::disk('reports')->allFiles())->toBeEmpty();
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+});
 
 // ---------------------------------------------------------------------------
 // GenerateClassReportPdfJobTest — queue dispatch, storage, notifications

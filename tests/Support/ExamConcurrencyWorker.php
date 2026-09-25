@@ -96,7 +96,7 @@ try {
 } catch (HttpExceptionInterface $exception) {
     $write(['event' => 'result', 'status' => 'http_exception', 'code' => $exception->getStatusCode()]);
 } catch (Throwable $exception) {
-    $write(['event' => 'result', 'status' => 'error', 'message' => $exception->getMessage()]);
+    $write(['event' => 'result', 'status' => 'error', 'exception' => get_class($exception), 'code' => $exception->getCode(), 'message' => $exception->getMessage()]);
     exit(1);
 } finally {
     while (DB::transactionLevel() > 0) {
