@@ -2,7 +2,7 @@
 
 ## Outcome and scope
 
-D1 delivers independent editing of the selected occurrence, including the first: parent edits no longer propagate to children. Deletion/promotion is delivered in D2, not D1. The combined candidate was independently verified against issue #3.
+D1 delivered independent editing of the selected occurrence, including the first. D2 delivers table deletion of only the selected occurrence: deleting the first promotes the earliest remaining child (`scheduled_at`, then `id`), transfers the original recurrence rule and reparents siblings atomically without overwriting their IDs, dates or overrides. The combined candidate was independently verified against issue #3.
 
 Whole-series selection and exception reconciliation remain deferred; this slice does not close issue #3. User explicitly chose ODD and TDD ON, then authorized isolated MariaDB verification and updates to canonical R12/R13/R15 with their related scenarios. No SDD phase or archived-spec change was performed.
 
@@ -11,10 +11,10 @@ Whole-series selection and exception reconciliation remain deferred; this slice 
 - Branch: `feat/meeting-occurrence-exceptions`; base: `0b7334b2d3512916e4a728cea5a5e0fc3ad305ba`.
 - Delegated multi-file implementation and independent verification; parent maintained this record and performed narrow specification readback/edits.
 - Preserve `.atl/`, unrelated work, recurrence generation, notification/access policies and dependencies.
-- Direct model deletion and the Filament table still use the baseline FK cascade in D1. D2 introduces the Filament table `deleteOccurrence()` action; no bulk or edit-page delete action is included.
+- Direct model deletion retains its existing FK cascade for other flows. Starting in D2, the Filament table uses `deleteOccurrence()`; no bulk or edit-page delete action was added.
 - The separately authorized PDF correction is a later, separate work unit documented in `odd/tasks/report-pdf-concurrency.md`.
 - Delivery strategy: `ask-on-risk`. The accumulated branch exceeds the initial forecast; resolve review slices before committing or publishing. Do not reduce coverage to fit a line heuristic.
-- D1 delivers editing only; D2 deletion/promotion and D3 PDF correction are separate follow-up work units. Three local work-unit commits were authorized, not publication: no push, PR, merge, branch deletion or issue closure is authorized.
+- D1 delivered editing only; D2 additionally delivers deletion/promotion. D3 PDF correction is a separate follow-up work unit. Three local work-unit commits were authorized, not publication: no push, PR, merge, branch deletion or issue closure is authorized.
 - Local commit sequence: editing with its regression/spec hunks, then deletion/promotion with its tests/specs, then the separate report unit. Keep final source behavior unchanged and verify intermediate candidates. PR chain strategy remains undecided; no PR is being prepared.
 
 ## Tasks
@@ -27,11 +27,11 @@ Whole-series selection and exception reconciliation remain deferred; this slice 
 - [x] E4 Record evidence, limitations and pending delivery status.
 - [x] I1 Audit possible report-file impact read-only and obtain the user's recovery decision.
 - [x] D1 Editing work unit verified in an isolated snapshot and identified by containing commit subject `feat(meetings): edit individual occurrences independently`; parent records its full hash externally.
-- [ ] D2 Follow-up deletion/promotion work unit: `feat(meetings): preserve recurring siblings on occurrence deletion`.
+- [x] D2 Deletion/promotion work unit verified in an isolated snapshot and identified by containing commit subject `feat(meetings): preserve recurring siblings on occurrence deletion`; parent records its full hash externally.
 
 ## Snapshot boundary
 
-D1 contains only independent editing; table deletion still cascades under baseline behavior. The deletion tests and concurrency harness belong to D2. Combined-candidate verification below is historical, not evidence of this intermediate snapshot. Independent isolated-snapshot verification is recorded separately below. Commit identity is its unique subject; full hashes are recorded externally. Local commits remain unpublished.
+D2 adds the table deletion/promotion behavior, its feature and concurrency coverage, and final R13/R15 specification; D1 contains only independent editing. Combined-candidate verification below is historical, not evidence of this intermediate snapshot. Independent isolated-snapshot verification is recorded separately below. Commit identity is its unique subject; full hashes are recorded externally. Local commits remain unpublished.
 
 ## Independent isolated-snapshot verification
 
@@ -39,11 +39,11 @@ The verifier exported the pinned tree into an isolated snapshot and confirmed ar
 
 | Snapshot | Command | Result |
 |---|---|---|
-| D1 | `php artisan test tests/Feature/RecurringMeetingTest.php tests/Feature/CalendarFeedTest.php tests/Feature/IcalExportTest.php tests/Feature/StudentDashboardTest.php` | 44 tests / 272 assertions, exit 0, no warnings |
-| D1 | `php vendor/bin/pint --test` | Passed, exit 0 |
-| D1 | `composer analyse` | 101 files, no errors, exit 0 (Windows verifier invoked the Composer PHAR through PHP) |
+| D2 | `php artisan test tests/Feature/RecurringMeetingTest.php tests/Feature/CalendarFeedTest.php tests/Feature/IcalExportTest.php tests/Feature/StudentDashboardTest.php` | 51 tests / 354 assertions, exit 0, no warnings |
+| D2 | `php vendor/bin/pint --test` | Passed, exit 0 |
+| D2 | `composer analyse` | 101 files, no errors, exit 0 (Windows verifier invoked the Composer PHAR through PHP) |
 
-`git diff --check` passed for all three prepared deltas. The first D1 snapshot attempt lacked an ignored Vite manifest (15 failed, 29 warnings); after three existing assets were copied, tests passed with 44 warnings from a missing snapshot-only environment file. A minimal synthetic environment fixed the harness; the final D1 run above had no warnings. A missing Composer executable caused a pre-spawn WinError2; invoking the PHP Composer PHAR resolved it. These harness diagnostics are not product regressions or new TDD RED evidence. MariaDB concurrency was not rerun for the intermediate snapshots; the 3/3 combined-candidate results remain historical.
+`git diff --check` passed for all three prepared deltas. The first D1 snapshot attempt lacked an ignored Vite manifest (15 failed, 29 warnings); after three existing assets were copied, tests passed with 44 warnings from a missing snapshot-only environment file. A minimal synthetic environment fixed the harness; the final D2 run above had no warnings. A missing Composer executable caused a pre-spawn WinError2; invoking the PHP Composer PHAR resolved it. These harness diagnostics are not product regressions or new TDD RED evidence. MariaDB concurrency was not rerun for the intermediate snapshots; the 3/3 combined-candidate results remain historical.
 
 ## Verification evidence
 

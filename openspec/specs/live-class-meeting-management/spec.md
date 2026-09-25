@@ -235,9 +235,9 @@ MUST display "Próximas clases en vivo": next 5 upcoming meetings (subscribed→
 | R10 | Meeting Recurrence Methods | `isRecurring()` SHALL return `$this->recurrence_rule !== null`. `generateInstances(int $count)` MUST create N-1 children with `recurrence_rule=null`, computing `scheduled_at` via rule: weekly=+7·i days, biweekly=+14·i, monthly=+1 month·i. Frequency: `weekly`\|`biweekly`\|`monthly`. Interval default: 1. Count default: 12. |
 | R11 | Recurring Meeting Creation | `MeetingResource` form MUST include "Make this recurring" section: "Is recurring?" checkbox revealing frequency Select, interval TextInput, count TextInput. Unchecked submit → one-off (no rule, no children). Checked submit → parent with `recurrence_rule` + `generateInstances(count - 1)` children. |
 | R12 | Individual Occurrence Edits | Editing a meeting, including the first occurrence, MUST change only that row. Existing child dates, fields, and overrides MUST remain unchanged; whole-series propagation and exception reconciliation are deferred. |
-| R13 | Delete-All Cascade | Deleting a parent MUST cascade-delete all children via `parent_id` FK `onDelete('cascade')`. No custom code required. |
+| R13 | Individual Occurrence Deletion | The table delete action MUST delete only the selected occurrence. Deleting a child leaves its parent and siblings unchanged. Deleting the first occurrence MUST atomically promote the earliest remaining child (`scheduled_at`, then `id`), copy the original parent's recurrence rule to it, and reparent the remaining siblings without regenerating or overwriting their IDs, dates, or overrides. Direct model deletion retains the FK cascade for other flows. |
 | R14 | Student Dashboard Compatibility | The existing "Próximas clases en vivo" dashboard SHALL display recurring instances unchanged — children are `meetings` rows the existing query already surfaces. |
-| R15 | Deferred Scope | RRULE-based iCalendar series export, email reminders, whole-series editing, per-instance deletion, and advanced exception reconciliation are deferred. Materialized occurrences remain available through the existing calendar feed. |
+| R15 | Deferred Scope | RRULE-based iCalendar series export, email reminders, whole-series edit/delete selection, and advanced exception reconciliation are deferred. Materialized occurrences remain available through the existing calendar feed. |
 
 ### Scenario: Migration columns exist
 
@@ -287,11 +287,18 @@ MUST display "Próximas clases en vivo": next 5 upcoming meetings (subscribed→
 - WHEN the teacher edits one child's title or scheduled date
 - THEN only that child changes AND the parent and siblings remain unchanged
 
-### Scenario: Delete all cascades to children
+### Scenario: Deleting the first occurrence preserves remaining meetings
 
-- GIVEN parent with 3 children
-- WHEN parent is deleted
-- THEN parent and all 3 children removed from `meetings` table
+- GIVEN a parent with three children
+- WHEN the teacher confirms the table delete action for the parent
+- THEN only the parent is deleted AND the earliest child by `scheduled_at`, then `id`, becomes the parent with the original recurrence rule
+- AND the remaining siblings reference that successor without changing their IDs, dates, or overrides
+
+### Scenario: Deleting a child preserves the rest of the series
+
+- GIVEN a parent with multiple children
+- WHEN the teacher confirms the table delete action for one child
+- THEN only that child is deleted AND the parent and siblings remain unchanged
 
 ### Scenario: Student dashboard shows recurring instances
 

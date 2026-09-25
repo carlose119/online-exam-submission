@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 #[Fillable(['class_id', 'title', 'scheduled_at', 'duration_minutes', 'meeting_url', 'agenda', 'recurrence_rule', 'parent_id'])]
 class Meeting extends Model
@@ -125,6 +127,33 @@ class Meeting extends Model
         } else {
             $this->attributes['recurrence_rule'] = json_encode($value);
         }
+    }
+
+    /**
+     * Remove only this occurrence. Lock the original row before selecting its
+     * children so concurrent promotions serialize on the same parent.
+     */
+    public function deleteOccurrence(): bool
+    {
+        return DB::transaction(function (): bool {
+            $meeting = static::query()->whereKey($this->getKey())->lockForUpdate()->firstOrFail();
+            $children = $meeting->children()->orderBy('scheduled_at')->orderBy('id')->lockForUpdate()->get();
+
+            if ($children->isNotEmpty()) {
+                $successor = $children->first();
+                $successor->update([
+                    'parent_id' => null,
+                    'recurrence_rule' => $meeting->recurrence_rule,
+                ]);
+                $meeting->children()->whereKeyNot($successor->id)->update(['parent_id' => $successor->id]);
+            }
+
+            if (! $meeting->delete()) {
+                throw new RuntimeException('Meeting deletion was cancelled.');
+            }
+
+            return true;
+        });
     }
 
     /** @return array<int, Carbon> */

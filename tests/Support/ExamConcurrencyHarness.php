@@ -25,6 +25,24 @@ final class ExamConcurrencyHarness
         return ['process' => $process, 'pipes' => $pipes, 'ipc_path' => $ipcPath, 'ipc_offset' => 0, 'buffer' => ''];
     }
 
+    public static function startMeeting(int $meetingId): array
+    {
+        $ipcPath = tempnam(sys_get_temp_dir(), 'meeting-concurrency-');
+        if ($ipcPath === false) {
+            throw new RuntimeException('Unable to create meeting worker IPC file.');
+        }
+        $command = [PHP_BINARY, base_path('tests/Support/MeetingOccurrenceConcurrencyWorker.php'), $ipcPath, (string) $meetingId];
+        $process = proc_open($command, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes, base_path());
+        if (! is_resource($process)) {
+            @unlink($ipcPath);
+
+            throw new RuntimeException('Unable to start meeting concurrency worker.');
+        }
+        fclose($pipes[0]);
+
+        return ['process' => $process, 'pipes' => $pipes, 'ipc_path' => $ipcPath, 'ipc_offset' => 0, 'buffer' => ''];
+    }
+
     public static function message(array &$worker, float $timeout = 10): array
     {
         $deadline = microtime(true) + $timeout;
