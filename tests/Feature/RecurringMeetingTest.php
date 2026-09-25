@@ -338,10 +338,10 @@ it('creates a recurring series of N instances via generateInstances', function (
 });
 
 // ---------------------------------------------------------------------------
-// 5. Edit-all propagation (future updated, past untouched)
+// 5. Individual occurrence edits
 // ---------------------------------------------------------------------------
 
-it('propagates edit changes to future children but not past', function () {
+it('edits the first occurrence without overwriting future exceptions', function () {
     Carbon::setTestNow('2026-08-03 12:00:00');
 
     $teacher = User::create([
@@ -351,6 +351,7 @@ it('propagates edit changes to future children but not past', function () {
         'role' => 'TEACHER',
     ]);
 
+    $this->actingAs($teacher);
     $class = SchoolClass::create([
         'title' => 'EditProp Class',
         'teacher_id' => $teacher->id,
@@ -395,22 +396,15 @@ it('propagates edit changes to future children but not past', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    // Simulate the EditMeeting afterSave hook
-    $parent->update(['title' => 'Updated Title']);
+    $futureChild2->update(['title' => 'Custom exception']);
+    Livewire::test(EditMeeting::class, ['record' => $parent->id])
+        ->fillForm(['title' => 'Updated Title'])
+        ->call('save')->assertHasNoErrors();
 
-    $parent->children()
-        ->where('scheduled_at', '>=', now())
-        ->update([
-            'title' => $parent->title,
-            'agenda' => $parent->agenda,
-            'duration_minutes' => $parent->duration_minutes,
-            'meeting_url' => $parent->meeting_url,
-        ]);
-
-    // Assertions
+    expect($parent->fresh()->title)->toBe('Updated Title');
     expect($pastChild->fresh()->title)->toBe('Original Title');
-    expect($futureChild1->fresh()->title)->toBe('Updated Title');
-    expect($futureChild2->fresh()->title)->toBe('Updated Title');
+    expect($futureChild1->fresh()->title)->toBe('Original Title');
+    expect($futureChild2->fresh()->title)->toBe('Custom exception');
     expect($unrelated->fresh()->title)->toBe('Unrelated');
 
     Carbon::setTestNow();
