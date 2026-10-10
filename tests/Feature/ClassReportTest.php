@@ -2,13 +2,17 @@
 
 use App\Filament\Resources\ClassReportResource;
 use App\Filament\Resources\ClassReportResource\Pages\ClassReport;
+use App\Jobs\GenerateClassReportPdf;
 use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Models\StudentAttempt;
 use App\Models\User;
 use App\Services\ClassReportService;
+use App\Services\ReportArtifactPublisher;
 use App\Services\ReportFormatService;
+use App\Values\ReportFilters;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -189,9 +193,72 @@ it('renders an accurate empty report without chart bars', function () {
         ->assertDontSeeHtml('data-chart-bar');
 });
 
+it('renders one enabled PDF control in the report header', function (string $role) {
+    $owner = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($owner);
+    $viewer = $role === 'TEACHER' ? $owner : User::factory()->create(['role' => $role]);
+    $this->actingAs($viewer);
+
+    $page = Livewire::test(ClassReport::class, ['record' => $class])
+        ->assertSee('Report Class')->assertSee('Exam Results');
+    $dom = new DOMDocument;
+    @$dom->loadHTML($page->html());
+    $xpath = new DOMXPath($dom);
+    $buttons = $xpath->query('//header//button[contains(normalize-space(.), "Download PDF")]');
+
+    expect($buttons->length)->toBe(1);
+    $button = $buttons->item(0);
+    expect($button->hasAttribute('disabled'))->toBeFalse()
+        ->and($button->getAttribute('wire:click'))->toContain('mountAction', 'downloadPdf');
+})->with(['owner' => ['TEACHER'], 'admin' => ['ADMIN']]);
+
 // ---------------------------------------------------------------------------
 // Sync Download: PDF
 // ---------------------------------------------------------------------------
+
+it('downloads the PDF artifact through the rendered report action', function () {
+    $this->freezeTime();
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    config()->set('reports.sync_threshold', 100);
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($teacher);
+    $this->actingAs($teacher);
+
+    $page = Livewire::test(ClassReport::class, ['record' => $class])->callAction('downloadPdf');
+    $files = Storage::disk('reports')->allFiles();
+    expect($files)->toHaveCount(1);
+    $filename = $files[0];
+    expect(Storage::disk('reports')->get($filename))->toStartWith('%PDF-');
+    $page->assertRedirect(route('reports.download', ['filename' => $filename]));
+    $this->get(route('reports.download', ['filename' => $filename]))
+        ->assertOk()->assertDownload(basename($filename));
+});
+
+it('queues the PDF action with its class user and canonical filters without a sync artifact', function () {
+    $this->freezeTime();
+    Queue::fake();
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    config()->set('reports.sync_threshold', 0);
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = reportClass($teacher);
+    $this->actingAs($teacher);
+
+    Livewire::test(ClassReport::class, ['record' => $class])
+        ->callAction('filters', data: ['statuses' => ['passed']])
+        ->callAction('downloadPdf')->assertNoRedirect();
+    $filters = ReportFilters::fromTrustedForm(['statuses' => ['passed']], $class)->toArray();
+    $publisher = Mockery::mock(ReportArtifactPublisher::class);
+    $publisher->shouldReceive('publish')->once()->withArgs(fn ($record, $user, $format, $actualFilters) => $record->is($class) && $user->is($teacher) && $format === 'pdf' && $actualFilters === $filters);
+    Queue::assertPushed(GenerateClassReportPdf::class, 1);
+    Queue::assertPushed(GenerateClassReportPdf::class, function ($job) use ($publisher) {
+        $job->handle($publisher);
+
+        return true;
+    });
+    expect(Storage::disk('reports')->allFiles())->toBeEmpty();
+});
 
 it('generates PDF synchronously for a small class', function () {
     Storage::fake('reports');

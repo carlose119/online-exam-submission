@@ -1,3 +1,4 @@
+<x-filament-panels::page>
 <div class="fi-section space-y-6">
     {{-- Class header --}}
     <div>
@@ -151,3 +152,4 @@
         @endif
     </div>
 </div>
+</x-filament-panels::page>

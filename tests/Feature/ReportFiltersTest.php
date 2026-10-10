@@ -189,7 +189,17 @@ it('includes exact endpoints, keeps selected empty exams, and gives every format
     $filters['statuses'] = ['passed'];
     $data = app(ClassReportService::class)->generate($class, $filters);
     $html = view('reports.class-pdf', ['data' => $data, 'class' => $class])->render();
-    $page = view('filament.resources.class-report-resource.pages.class-report', ['reportData' => $data])->render();
+    $this->actingAs($teacher);
+    $page = Livewire::test(ClassReport::class, ['record' => $class])
+        ->assertDontSee('Clear filters')
+        ->callAction('filters', data: [
+            'exam_ids' => [(string) $exam->id, (string) $otherExam->id],
+            'statuses' => ['passed'],
+            'started_from' => '2026-06-15 12:00:00', 'started_until' => '2026-06-15 12:00:00',
+        ])
+        ->assertSee('Clear filters')
+        ->assertSet('reportData', $data)
+        ->html();
     $rows = (new ClassReportExcelExport($data, $class))->collection();
 
     expect($data['overall_stats']['total_attempts'])->toBe(1)
