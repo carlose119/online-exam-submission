@@ -3,9 +3,12 @@
 use App\Filament\Resources\MeetingResource;
 use App\Filament\Resources\MeetingResource\Pages\CreateMeeting;
 use App\Filament\Resources\MeetingResource\Pages\EditMeeting;
+use App\Filament\Resources\MeetingResource\Pages\ListMeetings;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\User;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\Exceptions\ActionNotResolvableException;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -338,10 +341,10 @@ it('creates a recurring series of N instances via generateInstances', function (
 });
 
 // ---------------------------------------------------------------------------
-// 5. Edit-all propagation (future updated, past untouched)
+// 5. Individual occurrence edits
 // ---------------------------------------------------------------------------
 
-it('propagates edit changes to future children but not past', function () {
+it('edits the first occurrence without overwriting future exceptions', function () {
     Carbon::setTestNow('2026-08-03 12:00:00');
 
     $teacher = User::create([
@@ -351,6 +354,7 @@ it('propagates edit changes to future children but not past', function () {
         'role' => 'TEACHER',
     ]);
 
+    $this->actingAs($teacher);
     $class = SchoolClass::create([
         'title' => 'EditProp Class',
         'teacher_id' => $teacher->id,
@@ -395,22 +399,15 @@ it('propagates edit changes to future children but not past', function () {
         'scheduled_at' => now()->addDay(),
     ]);
 
-    // Simulate the EditMeeting afterSave hook
-    $parent->update(['title' => 'Updated Title']);
+    $futureChild2->update(['title' => 'Custom exception']);
+    Livewire::test(EditMeeting::class, ['record' => $parent->id])
+        ->fillForm(['title' => 'Updated Title'])
+        ->call('save')->assertHasNoErrors();
 
-    $parent->children()
-        ->where('scheduled_at', '>=', now())
-        ->update([
-            'title' => $parent->title,
-            'agenda' => $parent->agenda,
-            'duration_minutes' => $parent->duration_minutes,
-            'meeting_url' => $parent->meeting_url,
-        ]);
-
-    // Assertions
+    expect($parent->fresh()->title)->toBe('Updated Title');
     expect($pastChild->fresh()->title)->toBe('Original Title');
-    expect($futureChild1->fresh()->title)->toBe('Updated Title');
-    expect($futureChild2->fresh()->title)->toBe('Updated Title');
+    expect($futureChild1->fresh()->title)->toBe('Original Title');
+    expect($futureChild2->fresh()->title)->toBe('Custom exception');
     expect($unrelated->fresh()->title)->toBe('Unrelated');
 
     Carbon::setTestNow();
@@ -420,7 +417,7 @@ it('propagates edit changes to future children but not past', function () {
 // 6. Delete cascade
 // ---------------------------------------------------------------------------
 
-it('deletes all children when parent is deleted via cascade', function () {
+it('promotes the earliest surviving occurrence on table deletion', function () {
     $teacher = User::create([
         'name' => 'CascadeRec Teacher',
         'email' => 'cascaderec@test.com',
@@ -428,40 +425,144 @@ it('deletes all children when parent is deleted via cascade', function () {
         'role' => 'TEACHER',
     ]);
 
+    $this->actingAs($teacher);
     $class = SchoolClass::create([
         'title' => 'CascadeRec Class',
         'teacher_id' => $teacher->id,
         'invitation_code' => 'CASREC01',
     ]);
 
+    $rule = json_encode(['frequency' => 'weekly', 'interval' => 1]);
     $parent = Meeting::create([
         'class_id' => $class->id,
         'title' => 'Parent',
         'scheduled_at' => now()->addHour(),
+        'recurrence_rule' => $rule,
     ]);
 
     $child1 = Meeting::create([
         'class_id' => $class->id,
         'title' => 'Child 1',
-        'scheduled_at' => now()->addWeek(),
+        'scheduled_at' => now()->addWeeks(2),
         'parent_id' => $parent->id,
     ]);
 
     $child2 = Meeting::create([
         'class_id' => $class->id,
         'title' => 'Child 2',
-        'scheduled_at' => now()->addWeeks(2),
+        'scheduled_at' => now()->addWeek(),
         'parent_id' => $parent->id,
     ]);
 
     expect(Meeting::count())->toBe(3);
 
-    $parent->delete();
+    Livewire::test(ListMeetings::class)
+        ->callTableAction(DeleteAction::class, $parent)
+        ->assertNotified('Deleted');
 
     expect(Meeting::find($parent->id))->toBeNull();
-    expect(Meeting::find($child1->id))->toBeNull();
-    expect(Meeting::find($child2->id))->toBeNull();
+    expect($child2->fresh()->parent_id)->toBeNull();
+    expect($child2->fresh()->recurrence_rule)->toBe($rule);
+    expect($child2->fresh()->title)->toBe('Child 2');
+    expect($child1->fresh()->parent_id)->toBe($child2->id);
+    expect($child1->fresh()->scheduled_at->toDateString())->toBe(now()->addWeeks(2)->toDateString());
+    expect(Meeting::count())->toBe(2);
+});
+
+it('edits and deletes a child without changing its parent or sibling', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Isolated Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'ISOLATED']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Parent', 'scheduled_at' => '2026-08-01 10:00:00', 'recurrence_rule' => '{"frequency":"weekly"}']);
+    $child = Meeting::create(['class_id' => $class->id, 'title' => 'Child', 'scheduled_at' => '2026-08-08 10:00:00', 'parent_id' => $parent->id]);
+    $sibling = Meeting::create(['class_id' => $class->id, 'title' => 'Sibling', 'scheduled_at' => '2026-08-15 10:00:00', 'parent_id' => $parent->id]);
+    $this->actingAs($teacher);
+
+    Livewire::test(EditMeeting::class, ['record' => $child->id])
+        ->fillForm(['title' => 'Child override', 'scheduled_at' => '2026-08-09 10:00:00'])
+        ->call('save')->assertHasNoErrors();
+    expect($child->fresh()->title)->toBe('Child override');
+    expect($parent->fresh()->title)->toBe('Parent');
+    expect($sibling->fresh()->title)->toBe('Sibling');
+
+    Livewire::test(ListMeetings::class)->callTableAction(DeleteAction::class, $child)->assertNotified('Deleted');
+    expect($child->fresh())->toBeNull();
+    expect($parent->fresh()->recurrence_rule)->toBe('{"frequency":"weekly"}');
+    expect($sibling->fresh()->parent_id)->toBe($parent->id);
+    expect(Meeting::count())->toBe(2);
+});
+
+it('breaks equal-date promotion ties by id and retains each surviving exception', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Tie Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'TIECLASS']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Parent', 'scheduled_at' => '2026-08-01 10:00:00', 'recurrence_rule' => '{"frequency":"monthly"}']);
+    $first = Meeting::create(['class_id' => $class->id, 'title' => 'First override', 'scheduled_at' => '2026-09-01 10:00:00', 'duration_minutes' => 45, 'agenda' => 'First agenda', 'meeting_url' => 'https://example.com/first', 'parent_id' => $parent->id]);
+    $second = Meeting::create(['class_id' => $class->id, 'title' => 'Second override', 'scheduled_at' => '2026-09-01 10:00:00', 'duration_minutes' => 30, 'agenda' => 'Second agenda', 'meeting_url' => 'https://example.com/second', 'parent_id' => $parent->id]);
+    $firstBefore = $first->getAttributes();
+    $secondBefore = $second->getAttributes();
+    $this->actingAs($teacher);
+
+    Livewire::test(ListMeetings::class)->callTableAction(DeleteAction::class, $parent)->assertNotified('Deleted');
+    $firstAfter = $first->fresh()->getAttributes();
+    $secondAfter = $second->fresh()->getAttributes();
+    expect($firstAfter['parent_id'])->toBeNull();
+    expect($firstAfter['recurrence_rule'])->toBe($parent->recurrence_rule);
+    expect($secondAfter['parent_id'])->toBe($first->id);
+    foreach (['id', 'class_id', 'title', 'scheduled_at', 'duration_minutes', 'meeting_url', 'agenda'] as $field) {
+        expect($firstAfter[$field])->toBe($firstBefore[$field]);
+        expect($secondAfter[$field])->toBe($secondBefore[$field]);
+    }
+});
+
+it('deletes a first occurrence with one child and then the last occurrence', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Last Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'LASTCLAS']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Parent', 'scheduled_at' => now()->addDay(), 'recurrence_rule' => '{"frequency":"weekly"}']);
+    $child = Meeting::create(['class_id' => $class->id, 'title' => 'Child', 'scheduled_at' => now()->addWeek(), 'parent_id' => $parent->id]);
+    $this->actingAs($teacher);
+
+    Livewire::test(ListMeetings::class)->callTableAction(DeleteAction::class, $parent)->assertNotified('Deleted');
+    expect($child->fresh()->parent_id)->toBeNull();
+    expect(Meeting::count())->toBe(1);
+    Livewire::test(ListMeetings::class)->callTableAction(DeleteAction::class, $child)->assertNotified('Deleted');
     expect(Meeting::count())->toBe(0);
+});
+
+it('rejects cross-teacher edit and table deletion without changing a series', function () {
+    $owner = User::factory()->create(['role' => 'TEACHER']);
+    $stranger = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Owned Class', 'teacher_id' => $owner->id, 'invitation_code' => 'OWNEDCLS']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Protected', 'scheduled_at' => now()->addDay(), 'recurrence_rule' => '{"frequency":"weekly"}']);
+    $child = Meeting::create(['class_id' => $class->id, 'title' => 'Protected child', 'scheduled_at' => now()->addWeek(), 'parent_id' => $parent->id]);
+    $this->actingAs($stranger);
+
+    Livewire::test(EditMeeting::class, ['record' => $parent->id])->assertNotFound();
+    Livewire::test(ListMeetings::class)->assertCanNotSeeTableRecords([$parent, $child]);
+    expect(fn () => Livewire::test(ListMeetings::class)->callTableAction(DeleteAction::class, $parent))
+        ->toThrow(ActionNotResolvableException::class);
+    expect(Meeting::find($parent->id)->title)->toBe('Protected');
+    expect(Meeting::find($child->id)->parent_id)->toBe($parent->id);
+});
+
+it('rolls back promotion when a deletion observer cancels the final delete', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Cancel Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'CANCELLD']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Parent', 'scheduled_at' => now()->addDay(), 'recurrence_rule' => '{"frequency":"weekly"}']);
+    $child = Meeting::create(['class_id' => $class->id, 'title' => 'Child', 'scheduled_at' => now()->addWeek(), 'parent_id' => $parent->id]);
+    Meeting::deleting(fn (Meeting $meeting): bool => $meeting->id !== $parent->id);
+
+    expect(fn () => $parent->deleteOccurrence())->toThrow(RuntimeException::class);
+    expect($parent->fresh())->not->toBeNull();
+    expect($child->fresh()->parent_id)->toBe($parent->id);
+    expect($child->fresh()->recurrence_rule)->toBeNull();
+});
+
+it('retains the direct model cascade for unrelated owning-class flows', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Cascade Class', 'teacher_id' => $teacher->id, 'invitation_code' => 'CASCADED']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Parent', 'scheduled_at' => now()->addDay()]);
+    $child = Meeting::create(['class_id' => $class->id, 'title' => 'Child', 'scheduled_at' => now()->addWeek(), 'parent_id' => $parent->id]);
+    $parent->delete();
+    expect($child->fresh())->toBeNull();
 });
 
 // ---------------------------------------------------------------------------

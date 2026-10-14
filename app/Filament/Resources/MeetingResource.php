@@ -225,7 +225,8 @@ class MeetingResource extends Resource
                 EditAction::make(),
 
                 DeleteAction::make()
-                    ->modalDescription('This meeting will be permanently deleted.'),
+                    ->modalDescription('Only this occurrence will be permanently deleted. Other occurrences will remain.')
+                    ->using(fn (Meeting $record): bool => $record->deleteOccurrence()),
             ])
             ->bulkActions([
                 //

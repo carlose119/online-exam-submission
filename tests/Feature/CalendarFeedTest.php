@@ -1,11 +1,13 @@
 <?php
 
+use App\Filament\Resources\MeetingResource\Pages\ListMeetings;
 use App\Http\Controllers\CalendarFeedHeaderBag;
 use App\Livewire\Dashboard;
 use App\Models\Meeting;
 use App\Models\SchoolClass;
 use App\Models\User;
 use App\Services\IcalBuilder;
+use Filament\Actions\DeleteAction;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
@@ -107,6 +109,30 @@ it('includes only subscribed meetings and materialized recurring instances', fun
 
     $meeting = $parent->fresh()->load('classroom.teacher');
     expect(app(IcalBuilder::class)->buildMany([$meeting]))->toBe(app(IcalBuilder::class)->build($meeting));
+});
+
+it('serves promoted and exceptional occurrences without exposing another class', function () {
+    $teacher = User::factory()->create(['role' => 'TEACHER']);
+    $class = SchoolClass::create(['title' => 'Promoted Calendar', 'teacher_id' => $teacher->id, 'invitation_code' => 'PROMOCAL']);
+    $privateClass = SchoolClass::create(['title' => 'Other Calendar', 'teacher_id' => $teacher->id, 'invitation_code' => 'OTHERCAL']);
+    $parent = Meeting::create(['class_id' => $class->id, 'title' => 'Removed start', 'scheduled_at' => '2026-08-01 10:00:00', 'recurrence_rule' => '{"frequency":"weekly"}']);
+    $successor = Meeting::create(['class_id' => $class->id, 'title' => 'Promoted title', 'scheduled_at' => '2026-08-08 10:00:00', 'parent_id' => $parent->id]);
+    $sibling = Meeting::create(['class_id' => $class->id, 'title' => 'Exceptional title', 'scheduled_at' => '2026-08-15 11:00:00', 'parent_id' => $parent->id]);
+    Meeting::create(['class_id' => $privateClass->id, 'title' => 'Private title', 'scheduled_at' => '2026-08-22 10:00:00']);
+    $student = User::factory()->create(['role' => 'STUDENT']);
+    $student->subscribedClasses()->attach($class->id);
+    $token = $student->generateFeedToken();
+    $this->actingAs($teacher);
+
+    Livewire::test(ListMeetings::class)
+        ->callTableAction(DeleteAction::class, $parent)
+        ->assertNotified('Deleted');
+    $response = $this->get(route('calendar.feed', ['token' => $token]));
+    $response->assertOk()->assertSee('Promoted title')->assertSee('Exceptional title')
+        ->assertDontSee('Removed start')->assertDontSee('Private title')->assertDontSee('RRULE');
+    expect(substr_count($response->getContent(), 'BEGIN:VEVENT'))->toBe(2);
+    expect($successor->fresh()->parent_id)->toBeNull();
+    expect($sibling->fresh()->parent_id)->toBe($successor->id);
 });
 
 it('lazily issues a dashboard feed token and invalidates it on regeneration', function () {
