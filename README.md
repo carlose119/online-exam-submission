@@ -138,6 +138,18 @@ Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before seeding to override these values. 
 
 Students create their own accounts at `/register` and verify them through the inbox link sent during registration. Teacher accounts are managed by an administrator in Filament and do not receive the student registration notification.
 
+### Local report demo data
+
+For a populated report without changing the default administrator seeder, run this **only against your local development database** after migrations:
+
+```bash
+php artisan db:seed --class=ReportDemoSeeder
+```
+
+It creates one teacher, one verified student, an enrolled class, and a two-option exam with one completed 10/10 attempt. Sign in at `/admin/login` as `pdf.teacher@example.test` with password `LocalPdfDemo!2026`, then open **Reports → PDF Demo Class → View Report → Download PDF**. The student login is `pdf.student@example.test` with the same local-only password.
+
+The seeder accepts only `local` or `testing` environments. All records are created in one transaction. If either demo email or invitation code `PDFDEMO2026` already exists, it skips the entire fixture without modifying any data or passwords. Re-running is safe but does not repair a partially deleted fixture. Other existing records are preserved, and the default `DatabaseSeeder` remains unchanged. Never deploy these demo accounts or use these credentials outside a disposable local database.
+
 ### Student email verification
 
 Registration sends one verification email synchronously, authenticates the new `STUDENT`, and opens `/verify-email`. Unverified students can resend the link from that notice. Public class invitation pages remain available to everyone, but joining a class, opening `/dashboard` or `/profile`, taking an exam, viewing a result, and downloading an individual meeting calendar require a verified `STUDENT` account. An invitation carried through login or registration returns to that public page after verification; joining still requires a new explicit POST.
