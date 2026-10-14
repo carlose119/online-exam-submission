@@ -197,7 +197,9 @@ The `MEETING` study-material type is a dated link shown with class materials; th
 
 ### Report visualizations
 
-The interactive class report compares exams with server-rendered bars and readable numeric labels. Apply **Filters** to update both charts and the retained **Exam Results** tables; no chart library is required.
+The interactive class report uses responsive summary cards, separate chart panels, and expandable exam tables with horizontal scrolling on small screens. Its light/dark styles are scoped to the report and included by its Blade template, so this page does not depend on Tailwind utilities being present in Filament's default stylesheet or require a separate frontend build.
+
+The report compares exams with server-rendered bars and readable numeric labels. Apply **Filters** to update both charts and the retained **Exam Results** tables; no chart library is required.
 
 | Chart | Measure and scale |
 |---|---|
