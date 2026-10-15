@@ -216,7 +216,8 @@ it('denies stale option loading without revealing class labels', function (strin
         ? $class->update(['teacher_id' => User::factory()->create(['role' => 'TEACHER'])->id])
         : $teacher->update(['role' => 'STUDENT']);
 
-    $page->call('mountAction', 'filters')->assertForbidden()->assertDontSee('Included')->assertDontSee($student->name);
+    // Filament re-resolves the record through the scoped resource query on every request and fails closed with 404.
+    $page->call('mountAction', 'filters')->assertNotFound()->assertDontSee('Included')->assertDontSee($student->name);
 })->with(['ownership', 'role']);
 
 it('evaluates current matching data when a queued job runs', function () {

@@ -345,7 +345,7 @@ The application uses one `User` model with role-based boundaries. Students use t
 | Database connection, missing-table, or migration error | Recheck `DB_CONNECTION` and `DB_*`, create the selected database/file, then run `php artisan migrate:status` and `php artisan migrate --seed`. Never troubleshoot against production data. |
 | A large PDF/Excel report stays queued | Start `php artisan queue:work`, verify `QUEUE_CONNECTION` and the `jobs` migration, and inspect failed jobs/logs. Reports at or above `REPORTS_SYNC_THRESHOLD` attempts are asynchronous. |
 | Password-reset or application email is not delivered | `MAIL_MAILER=log` is local non-delivery only. Configure SMTP, rebuild the config cache, restart queue workers, and distinguish transport acceptance from inbox placement. Never expose tokens or message content while troubleshooting. |
-| A route or Filament resource returns 403 or is hidden | Use the intended role and ownership boundary: students use web routes, administrators/teachers use `/admin`, teachers only manage owned class data, and students must join a class before protected exam/calendar access. Do not bypass authorization by changing role values manually. |
+| A route or Filament resource returns 403/404 or is hidden | Filament re-resolves panel records through each resource's scoped query on every interaction, so access revoked after a page loads returns 404. Use the intended role and ownership boundary: students use web routes, administrators/teachers use `/admin`, teachers only manage owned class data, and students must join a class before protected exam/calendar access. Do not bypass authorization by changing role values manually. |
 
 ## SDD Artifacts
 
