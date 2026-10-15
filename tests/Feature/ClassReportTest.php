@@ -107,7 +107,8 @@ it('reauthorizes a synchronous export action', function () {
     $page = Livewire::test(ClassReport::class, ['record' => $class]);
     $class->update(['teacher_id' => User::factory()->create(['role' => 'TEACHER'])->id]);
 
-    $page->call('mountAction', 'downloadPdf')->assertForbidden();
+    // Filament re-resolves the record through the scoped resource query on every request and fails closed with 404.
+    $page->call('mountAction', 'downloadPdf')->assertNotFound();
     expect(Storage::disk('reports')->allFiles())->toBeEmpty();
 });
 

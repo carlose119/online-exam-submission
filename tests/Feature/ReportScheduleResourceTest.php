@@ -88,9 +88,11 @@ it('fails closed when owner, class authority, or role changes after mount', func
     $service = app(ReportScheduleService::class);
     $schedule = $service->create($f['teacher'], $f['class']->id, scheduleUiData($f['class'], ['filters' => ReportFilters::EMPTY]));
     $this->actingAs($f['teacher']);
-    $edit = Livewire::test(EditReportSchedule::class, ['record' => $schedule->id]);
+    $edit = Livewire::test(EditReportSchedule::class, ['record' => $schedule->id])->fillForm(['format' => 'xlsx']);
     DB::table('report_schedules')->where('id', $schedule->id)->update(['owner_id' => $f['other']->id]);
-    $edit->fillForm(['format' => 'xlsx'])->call('save')->assertForbidden();
+    // Filament re-resolves the record through the scoped resource query on every request and fails closed with 404.
+    $edit->call('save')->assertNotFound();
+    expect($schedule->fresh()->format)->toBe('pdf');
 
     DB::table('report_schedules')->where('id', $schedule->id)->update(['owner_id' => $f['teacher']->id]);
     $f['class']->update(['teacher_id' => $f['other']->id]);
