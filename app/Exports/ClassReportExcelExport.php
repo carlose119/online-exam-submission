@@ -59,9 +59,9 @@ class ClassReportExcelExport implements FromCollection, ShouldAutoSize, WithHead
         return mb_substr($title, 0, 31);
     }
 
-    public function styles(Worksheet $sheet): void
+    public function styles(Worksheet $sheet): array
     {
         // Bold header row.
-        $sheet->getStyle('1')->getFont()->setBold(true);
+        return [1 => ['font' => ['bold' => true]]];
     }
 }

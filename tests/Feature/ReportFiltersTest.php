@@ -234,6 +234,21 @@ it('evaluates current matching data when a queued job runs', function () {
         ->and(app(ClassReportService::class)->generate($class)['overall_stats'])->toMatchArray(['total_attempts' => 4, 'avg_score' => 5.5, 'pass_rate' => 50.0]);
 });
 
+it('exports xlsx headings in a bold first row above plain data rows', function () {
+    Storage::fake('reports');
+    config()->set('reports.storage_disk', 'reports');
+    extract(filterFixture());
+
+    (new GenerateClassReportExcel($class->id, $teacher->id))->handle(app(ReportArtifactPublisher::class));
+    $sheet = IOFactory::load(Storage::disk('reports')->path(Storage::disk('reports')->allFiles()[0]))->getActiveSheet();
+
+    expect($sheet->rangeToArray('A1:D1')[0])->toBe(['Exam Title', 'Attempts', 'Avg Score', 'Pass Rate'])
+        ->and($sheet->getStyle('A1')->getFont()->getBold())->toBeTrue()
+        ->and($sheet->getStyle('D1')->getFont()->getBold())->toBeTrue()
+        ->and($sheet->getCell('A2')->getValue())->not->toBeNull()
+        ->and($sheet->getStyle('A2')->getFont()->getBold())->toBeFalse();
+});
+
 it('generates filtered PDF and XLSX artifacts with matching sparse content', function () {
     Storage::fake('reports');
     config()->set('reports.storage_disk', 'reports');
