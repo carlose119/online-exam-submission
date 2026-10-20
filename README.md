@@ -14,6 +14,12 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
+### Export an evaluation plan
+
+On a class report, choose **Download Evaluation Plan PDF** or **Download Evaluation Plan Excel** to export exam titles, plain descriptions, and maximum scores immediately. Select exams through the page filters to include only those exams; with no exam selection, the plan includes all class exams. Student, attempt-status, and date filters do not affect the plan.
+
+Plans use the same private, teacher/admin-authorized download route as performance reports. Empty classes produce an empty plan. Existing performance exports and scheduled reports are unchanged.
+
 ## Stack
 
 - PHP 8.4.1 or newer for the current lockfile, Composer 2, and Laravel 13

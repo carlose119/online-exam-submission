@@ -7,6 +7,7 @@ use App\Jobs\GenerateClassReportExcel;
 use App\Jobs\GenerateClassReportPdf;
 use App\Models\SchoolClass;
 use App\Services\ClassReportService;
+use App\Services\EvaluationPlanReportService;
 use App\Services\ReportAccess;
 use App\Services\ReportFormatService;
 use App\Values\ReportFilters;
@@ -46,6 +47,26 @@ class ClassReport extends Page
         $isSync = $totalAttempts < (int) config('reports.sync_threshold', 100);
 
         return [
+            Action::make('downloadEvaluationPlanPdf')
+                ->label('Download Evaluation Plan PDF')
+                ->color('gray')
+                ->action(function (): mixed {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+                    $data = app(EvaluationPlanReportService::class)->generate($this->record, $this->filters);
+                    $filename = app(ReportFormatService::class)->toEvaluationPlanPdf($data, $this->record);
+
+                    return redirect()->route('reports.download', ['filename' => $filename]);
+                }),
+            Action::make('downloadEvaluationPlanExcel')
+                ->label('Download Evaluation Plan Excel')
+                ->color('success')
+                ->action(function (): mixed {
+                    app(ReportAccess::class)->authorize(auth()->user(), $this->record->refresh());
+                    $data = app(EvaluationPlanReportService::class)->generate($this->record, $this->filters);
+                    $filename = app(ReportFormatService::class)->toEvaluationPlanExcel($data, $this->record);
+
+                    return redirect()->route('reports.download', ['filename' => $filename]);
+                }),
             Action::make('filters')
                 ->icon('heroicon-o-funnel')
                 ->fillForm(fn (): array => $this->filters)
