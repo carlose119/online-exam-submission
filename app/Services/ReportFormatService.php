@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Exports\ClassReportWorkbookExport;
+use App\Exports\EvaluationPlanExcelExport;
 use App\Models\SchoolClass;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 
@@ -67,6 +69,43 @@ class ReportFormatService
             $filename,
             config('reports.storage_disk'),
         );
+
+        return $filename;
+    }
+
+    public function toEvaluationPlanPdf(array $data, SchoolClass $class): string
+    {
+        $filename = $this->filename($class, 'pdf', 'evaluation-plan-'.Str::uuid());
+        $template = 'reports.evaluation-plan-pdf';
+        $compiledPath = app('blade.compiler')->getCompiledPath(View::getFinder()->find($template));
+        $lockPath = $compiledPath.'.lock';
+        if (! is_dir(dirname($lockPath)) && ! app('files')->makeDirectory(dirname($lockPath), 0755, true, true)) {
+            throw new RuntimeException("Unable to create report view lock directory: {$lockPath}");
+        }
+        $lock = @fopen($lockPath, 'c');
+        if ($lock === false) {
+            throw new RuntimeException("Unable to open report view lock: {$lockPath}");
+        }
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new RuntimeException("Unable to acquire report view lock: {$lockPath}");
+            }
+            $html = View::make($template, ['data' => $data])->render();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        Storage::disk(config('reports.storage_disk'))->put(
+            $filename, Pdf::loadHTML($html)->setPaper('a4', 'portrait')->output(),
+        );
+
+        return $filename;
+    }
+
+    public function toEvaluationPlanExcel(array $data, SchoolClass $class): string
+    {
+        $filename = $this->filename($class, 'xlsx', 'evaluation-plan-'.Str::uuid());
+        Excel::store(new EvaluationPlanExcelExport($data['exams']), $filename, config('reports.storage_disk'));
 
         return $filename;
     }
