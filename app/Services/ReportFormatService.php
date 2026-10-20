@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Exports\ClassReportExcelExport;
+use App\Exports\ClassReportWorkbookExport;
 use App\Models\SchoolClass;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
@@ -63,7 +63,7 @@ class ReportFormatService
         $filename ??= $this->filename($class, 'xlsx');
 
         Excel::store(
-            new ClassReportExcelExport($data, $class),
+            new ClassReportWorkbookExport($data, $class),
             $filename,
             config('reports.storage_disk'),
         );

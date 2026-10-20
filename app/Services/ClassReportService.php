@@ -23,6 +23,7 @@ class ClassReportService
      *         stats: array{attempts_count: int, avg_score: float, pass_rate: float, median: float},
      *         chart: array{attempts_count: int, scored_attempts_count: int, scored_pass_rate: ?float}
      *     }>,
+     *     gradebook: list<array{student_name: string, exam_title: string, attempt_number: ?int, score_obtained: ?float, max_score: int, status: string, finished_at: ?string}>,
      *     overall_stats: array{total_attempts: int, avg_score: float, pass_rate: float}
      * }
      */
@@ -31,6 +32,9 @@ class ClassReportService
         $filters = ReportFilters::from($filters, $class);
         $class->load([
             'teacher',
+            'students' => fn ($query) => $query
+                ->when($filters->studentIds, fn ($query) => $query->whereKey($filters->studentIds))
+                ->orderBy('name')->orderBy('users.id'),
             'exams' => fn ($query) => $query->when($filters->examIds, fn ($query) => $query->whereKey($filters->examIds)),
             'exams.studentAttempts' => fn ($query) => $query
                 ->when($filters->studentIds, fn ($query) => $query->whereIn('student_id', $filters->studentIds))
@@ -43,6 +47,7 @@ class ClassReportService
 
         $examsData = [];
         $allScores = [];
+        $gradebook = [];
 
         foreach ($class->exams as $exam) {
             $attempts = $exam->studentAttempts->filter(function ($attempt) use ($exam, $filters, $passThreshold): bool {
@@ -56,6 +61,33 @@ class ClassReportService
 
                 return in_array($status, $filters->statuses, true);
             });
+
+            $byStudent = $attempts->sortBy([
+                ['attempt_number', 'asc'], ['id', 'asc'],
+            ])->groupBy('student_id');
+            foreach ($class->students as $student) {
+                $studentAttempts = $byStudent->get($student->id, collect());
+                foreach ($studentAttempts->isEmpty() ? [null] : $studentAttempts as $attempt) {
+                    $score = $attempt?->finished_at !== null && $attempt?->score_obtained !== null
+                        ? (float) $attempt->score_obtained : null;
+                    $status = match (true) {
+                        $attempt === null => 'No matching attempts',
+                        $attempt->finished_at === null => 'In progress',
+                        $score === null => 'Not graded',
+                        $score >= $passThreshold * (int) $exam->max_score => 'Passed',
+                        default => 'Failed',
+                    };
+                    $gradebook[] = [
+                        'student_name' => $student->name,
+                        'exam_title' => $exam->title,
+                        'attempt_number' => $attempt?->attempt_number,
+                        'score_obtained' => $score,
+                        'max_score' => (int) $exam->max_score,
+                        'status' => $status,
+                        'finished_at' => $attempt?->finished_at?->toDateTimeString(),
+                    ];
+                }
+            }
 
             $attemptDetails = [];
             $scores = [];
@@ -112,6 +144,10 @@ class ClassReportService
         // Sort exams by title for stable output.
         usort($examsData, fn (array $a, array $b) => $a['exam']['title'] <=> $b['exam']['title']);
 
+        // Keep each student's exams and retakes together, independently of query order.
+        usort($gradebook, fn (array $a, array $b) => [$a['student_name'], $a['exam_title'], $a['attempt_number']]
+            <=> [$b['student_name'], $b['exam_title'], $b['attempt_number']]);
+
         $totalAttempts = count($allScores);
 
         return [
@@ -124,6 +160,7 @@ class ClassReportService
                 'name' => $class->teacher?->name ?? 'N/A',
             ],
             'exams' => $examsData,
+            'gradebook' => $gradebook,
             'overall_stats' => [
                 'total_attempts' => $totalAttempts,
                 'avg_score' => $totalAttempts > 0 ? $this->average($allScores) : 0.0,

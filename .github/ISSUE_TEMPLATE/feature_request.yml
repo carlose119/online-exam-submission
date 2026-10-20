@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose a focused feature with verifiable acceptance criteria.
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the requested behavior and the problem it solves.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List the observable outcomes that establish completion.
+    validations:
+      required: true
