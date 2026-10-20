@@ -1,7 +1,7 @@
-
-
 import Alpine from 'alpinejs';
 
-window.Alpine = Alpine;
-
-Alpine.start();
+// Livewire's synchronous script owns Alpine before this Vite module executes.
+if (!window.Livewire) {
+    window.Alpine = Alpine;
+    Alpine.start();
+}

@@ -14,6 +14,13 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
+### Exam timeout
+
+An open exam checks server expiry every second, including while idle. Only the server decides when to grade saved answers and redirect; pending answers are not saved after expiry. The countdown uses server time plus monotonic elapsed time, not the device's wall clock. Offline or suspended tabs finish on the next successful server check, not necessarily at the displayed zero.
+
+Timer regressions: `node --test tests/JavaScript/exam-countdown.test.mjs` and `php vendor/bin/pest tests/Feature/ExamTimerTest.php`.
+For isolated PHP runs, `EXAM_TEST_SANDBOX` opts into an owned directory beneath `.atl/exam-idle-timeout-checks/` with an empty `env/` and fresh `storage/`. The runner must explicitly set SQLite `:memory:`, array cache/session, single-file logging, and all Laravel bootstrap cache and compiled-view paths inside that sandbox. Startup rejects unsafe effective paths before providers or database traits run. Without the opt-in, normal Laravel test startup is unchanged.
+
 ### Export an evaluation plan
 
 On a class report, choose **Download Evaluation Plan PDF** or **Download Evaluation Plan Excel** to export exam titles, plain descriptions, and maximum scores immediately. Select exams through the page filters to include only those exams; with no exam selection, the plan includes all class exams. Student, attempt-status, and date filters do not affect the plan.
