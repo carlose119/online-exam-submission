@@ -1,17 +1,22 @@
 <div class="exam-take-container" style="max-width:720px;margin:2rem auto;padding:0 1rem;"
+     wire:poll.1s.keep-alive="$refresh"
      x-data="{
          timeLeft: 0,
          timerDisplay: '',
+         timeout: null,
+         destroy() { clearTimeout(this.timeout); },
          init() {
              const deadline = new Date('{{ $deadline }}').getTime();
+             const serverNow = new Date('{{ $serverNow }}').getTime();
+             const started = performance.now();
              const tick = () => {
-                 const now = Date.now();
+                 const now = serverNow + performance.now() - started;
                  const diff = Math.max(0, Math.floor((deadline - now) / 1000));
                  this.timeLeft = diff;
                  const m = Math.floor(diff / 60);
                  const s = diff % 60;
                  this.timerDisplay = m + ':' + String(s).padStart(2, '0');
-                 if (diff > 0) { setTimeout(tick, 1000); }
+                 if (diff > 0) { this.timeout = setTimeout(tick, 1000); }
              };
              tick();
          }

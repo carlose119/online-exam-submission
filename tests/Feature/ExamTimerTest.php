@@ -350,6 +350,62 @@ it('persists an unexpired Livewire save and next answer normally', function () {
         ->and($attempt->finished_at)->toBeNull();
 });
 
+it('preserves autosave and manual finish between idle checks', function () {
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+    $correct = $data['question']->options()->where('is_correct', true)->value('id');
+    Livewire::actingAs($data['student'])
+        ->test(ExamTake::class, ['attempt' => $attempt])
+        ->call('$refresh')
+        ->call('autosaveSingle', $data['question']->id, $correct)
+        ->call('$refresh')
+        ->assertSet("singleSelections.{$data['question']->id}", (string) $correct)
+        ->call('finalize')
+        ->assertRedirect(route('student.exam.result', $attempt));
+
+    expect($attempt->answers()->pluck('answer_option_id')->all())->toBe([$correct])
+        ->and((float) $attempt->fresh()->score_obtained)->toBe(10.0);
+});
+
+it('checks idle expiry without saving pending selections and remains idempotent', function () {
+    $this->travelTo(now()->startOfSecond());
+    $data = seedTimerTest(30);
+    $attempt = StudentAttempt::create([
+        'student_id' => $data['student']->id,
+        'exam_id' => $data['exam']->id,
+        'started_at' => now(),
+    ]);
+    $correct = $data['question']->options()->where('is_correct', true)->value('id');
+    $wrong = $data['question']->options()->where('is_correct', false)->value('id');
+    StudentAnswer::create([
+        'student_attempt_id' => $attempt->id,
+        'question_id' => $data['question']->id,
+        'answer_option_id' => $correct,
+    ]);
+    $component = Livewire::actingAs($data['student'])
+        ->test(ExamTake::class, ['attempt' => $attempt])
+        ->assertSeeHtml('wire:poll.1s.keep-alive="$refresh"')
+        ->set("singleSelections.{$data['question']->id}", (string) $wrong);
+
+    foreach ([now()->addMinutes(29), $attempt->deadline()] as $time) {
+        $this->travelTo($time);
+        $component->call('$refresh')->assertNoRedirect();
+        expect($attempt->fresh()->finished_at)->toBeNull()
+            ->and($attempt->answers()->pluck('answer_option_id')->all())->toBe([$correct]);
+    }
+    $this->travel(1)->seconds();
+    $component->call('$refresh')->assertRedirect(route('student.exam.result', $attempt));
+    $finishedAt = $attempt->fresh()->finished_at;
+    $component->call('$refresh');
+    expect($attempt->fresh()->finished_at->equalTo($finishedAt))->toBeTrue()
+        ->and((float) $attempt->fresh()->score_obtained)->toBe(10.0)
+        ->and($attempt->answers()->pluck('answer_option_id')->all())->toBe([$correct]);
+});
+
 // ---------------------------------------------------------------------------
 // Browser-close mid-exam → auto-submit on resume when timer expired
 // ---------------------------------------------------------------------------

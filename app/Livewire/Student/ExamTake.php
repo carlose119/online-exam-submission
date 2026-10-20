@@ -263,8 +263,6 @@ class ExamTake extends Component
         // Re-check timer on every render.
         if ($this->attempt->finished_at === null && $this->finalizeIfExpired()) {
             $this->redirect(route('student.exam.result', $this->attempt), navigate: false);
-
-            return view('livewire.student.exam.take');
         }
 
         $currentQuestion = $this->questions[$this->currentIndex] ?? null;
@@ -278,6 +276,7 @@ class ExamTake extends Component
             'totalQuestions' => $this->questions->count(),
             'currentIndex' => $this->currentIndex,
             'deadline' => $this->deadline(),
+            'serverNow' => now()->toIso8601String(),
             'isLast' => $this->currentIndex >= $this->questions->count() - 1,
         ]);
     }
