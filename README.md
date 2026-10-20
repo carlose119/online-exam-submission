@@ -190,6 +190,14 @@ Administrators do not use public registration to create teachers. Student regist
 
 The `MEETING` study-material type is a dated link shown with class materials; the separate **Meetings** resource provides scheduled meetings, recurrence, and student calendar export.
 
+### Student gradebook exports
+
+**Download PDF** includes a **Student Gradebook** section. **Download Excel** keeps the existing summary as its first worksheet and adds **Student Grades** as a second worksheet.
+
+The gradebook lists every currently enrolled student for each selected exam, including students without matching attempts. Every retake is a separate row; no best/latest or final grade is inferred. Finished scores preserve actual zeroes; unfinished attempts and finished attempts without a score have blank grades (**N/A** in PDF), labeled **In progress** and **Not graded** respectively.
+
+Student selection narrows the roster. Exam, status, and inclusive attempt-start filters narrow its matching attempts. **No matching attempts** means there are no attempts in that selection, not necessarily that the student never took the exam. Classes without selected exams or enrolled students produce an empty gradebook. Historical attempts from students no longer enrolled remain in the existing summaries and PDF attempt tables, but not in the current-enrollment gradebook. Existing statistics are unchanged.
+
 ### Report filters
 - **Available:** Filter by one or more exams, students, or attempt statuses: **In progress**, **Passed**, or **Failed**.
 - **Attempt start:** **Started from** and **Started until** are inclusive `started_at` bounds, normalized to canonical UTC before filtering.

@@ -143,6 +143,38 @@
         @endif
     @endforeach
 
+    <h2>Student Gradebook</h2>
+    <p>Current enrolled students; all matching attempts are listed separately. Missing grades are not zero.
+        No matching attempts may mean an exam was not taken or its attempts were excluded by filters.</p>
+    @if(empty($data['gradebook']))
+        <p>No enrolled students or exams match the current report filters.</p>
+    @else
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Exam</th>
+                    <th>Attempt</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th>Finished At</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data['gradebook'] as $row)
+                    <tr>
+                        <td>{{ $row['student_name'] }}</td>
+                        <td>{{ $row['exam_title'] }}</td>
+                        <td>{{ $row['attempt_number'] ?? 'N/A' }}</td>
+                        <td>{{ $row['score_obtained'] === null ? 'N/A' : $row['score_obtained'].' / '.$row['max_score'] }}</td>
+                        <td>{{ $row['status'] }}</td>
+                        <td>{{ $row['finished_at'] ?? 'N/A' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
     <h2>Overall Statistics</h2>
     <table class="stats-table">
         <thead>
