@@ -186,7 +186,7 @@ The core dependency is the class: an administrator creates a teacher account, th
 ### Administrator
 
 1. Sign in at `/admin` with an `ADMIN` account.
-2. Open **Teachers** to create or edit teacher accounts, suspend/reactivate access, generate a one-time visible temporary password, or delete an account.
+2. Open **Teachers** to create or edit teacher accounts, suspend/reactivate access, generate a one-time visible temporary password, or delete an account. **Suspended** also applies when creating a teacher: it blocks both login screens and subsequent protected requests from existing sessions, including open panel actions. Reactivation restores access; this suspension rule does not apply to administrators or students.
 3. Open **Reports** to view report summaries across all classes and export class performance as PDF or Excel. Reports show exam, student, and attempt counts; large exports require the queue worker.
 
 Administrators do not use public registration to create teachers. Student registration always assigns the `STUDENT` role, while the Teachers resource is restricted to administrators.

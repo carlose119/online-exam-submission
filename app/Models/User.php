@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -17,12 +19,25 @@ use Illuminate\Support\Str;
 
 #[Fillable(['name', 'email', 'password', 'role', 'suspended_at'])]
 #[Hidden(['password', 'remember_token', 'feed_token'])]
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     private const FEED_TOKEN_MAX_ATTEMPTS = 5;
+
+    public function isSuspendedTeacher(): bool
+    {
+        return $this->role === 'TEACHER' && $this->suspended_at !== null;
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Preserve Filament's previous local-only fallback; suspension must not widen panel access.
+        return config('app.env') === 'local'
+            && in_array($this->role, ['ADMIN', 'TEACHER'], true)
+            && ! $this->isSuspendedTeacher();
+    }
 
     /**
      * Get the attributes that should be cast.

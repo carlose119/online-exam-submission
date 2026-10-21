@@ -62,19 +62,7 @@ class TeacherResource extends Resource
                     ->label('Suspended')
                     ->formatStateUsing(fn (?User $record): bool => $record !== null && $record->suspended_at !== null)
                     ->dehydrateStateUsing(function (bool $state, ?User $record): ?string {
-                        if ($record === null) {
-                            return null;
-                        }
-
-                        if ($state && $record->suspended_at === null) {
-                            return now();
-                        }
-
-                        if (! $state && $record->suspended_at !== null) {
-                            return null;
-                        }
-
-                        return $record->suspended_at;
+                        return $state ? ($record?->suspended_at ?? now()) : null;
                     })
                     ->afterStateHydrated(function (Toggle $component, ?User $record): void {
                         if ($record !== null && $record->suspended_at !== null) {
