@@ -250,7 +250,7 @@ it('class_id select shows only the authenticated teachers classes', function () 
 // (f) end-to-end Filament form persists exam, questions, and options
 // ---------------------------------------------------------------------------
 
-it('creating an exam via the form persists the exam, questions, and options', function () {
+it('creating an exam via the form preserves the selected maximum and question data', function (int $maxScore) {
     $teacher = User::create([
         'name' => 'E2E Form Teacher',
         'email' => 'e2eform@example.com',
@@ -271,7 +271,7 @@ it('creating an exam via the form persists the exam, questions, and options', fu
             'class_id' => $class->id,
             'title' => 'End-to-End Form Exam',
             'duration_minutes' => 45,
-            'max_score' => 100,
+            'max_score' => $maxScore,
         ])
         ->assertOk();
 
@@ -302,17 +302,12 @@ it('creating an exam via the form persists the exam, questions, and options', fu
         ->call('create')
         ->assertHasNoErrors();
 
-    // Assert exam was created. max_score is explicitly set to 100 and since
-    // there are question points (5), the default-sum logic in beforeCreate()
-    // replaces 100 with 5 when questions are present and max_score is the
-    // form's default (100).
+    // The teacher's grading base is independent of the sum of question points.
     expect(Exam::where('title', 'End-to-End Form Exam')->exists())->toBeTrue();
 
     $exam = Exam::where('title', 'End-to-End Form Exam')->first();
     expect($exam->duration_minutes)->toBe(45);
-    // max_score was 100 (the default) with questions totaling 5 points, so
-    // beforeCreate() replaced it with the sum.
-    expect($exam->max_score)->toBe(5);
+    expect($exam->max_score)->toBe($maxScore);
 
     // Assert questions were persisted through the relationship Repeater
     $questions = $exam->questions;
@@ -328,7 +323,7 @@ it('creating an exam via the form persists the exam, questions, and options', fu
     expect($q1Options[0]->is_correct)->toBeFalse();
     expect($q1Options[1]->text)->toBe('4');
     expect($q1Options[1]->is_correct)->toBeTrue();
-});
+})->with([100, 20]);
 
 // ---------------------------------------------------------------------------
 // (h) order column used for relationship ordering

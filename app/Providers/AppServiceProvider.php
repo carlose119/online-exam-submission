@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\CheckRole;
 use App\Models\StudyMaterial;
 use App\Observers\StudyMaterialObserver;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
@@ -34,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Livewire::addPersistentMiddleware([
+            CheckRole::class,
             AuthenticateSession::class,
             EnsureEmailIsVerified::class,
         ]);

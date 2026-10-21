@@ -8,9 +8,9 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 |---|---|
 | Administration | Manage teacher accounts and access the shared Filament panel at `/admin`. |
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
-| Exams | Teachers build single- and multiple-choice exams; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
+| Exams | Teachers build single- and multiple-choice exams and choose a grading base (default 100), preserved independently of question points; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
-| Student experience | Students register, join multiple classes, use a dashboard, update profile credentials, take exams, and review scores. |
+| Student experience | Students register, join multiple classes, open syllabus and materials through **View class content** on each dashboard class card, update profile credentials, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
@@ -186,7 +186,7 @@ The core dependency is the class: an administrator creates a teacher account, th
 ### Administrator
 
 1. Sign in at `/admin` with an `ADMIN` account.
-2. Open **Teachers** to create or edit teacher accounts, suspend/reactivate access, generate a one-time visible temporary password, or delete an account.
+2. Open **Teachers** to create or edit teacher accounts, suspend/reactivate access, generate a one-time visible temporary password, or delete an account. **Suspended** also applies when creating a teacher: it blocks both login screens and subsequent protected requests from existing sessions, including open panel actions. Reactivation restores access; this suspension rule does not apply to administrators or students.
 3. Open **Reports** to view report summaries across all classes and export class performance as PDF or Excel. Reports show exam, student, and attempt counts; large exports require the queue worker.
 
 Administrators do not use public registration to create teachers. Student registration always assigns the `STUDENT` role, while the Teachers resource is restricted to administrators.

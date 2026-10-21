@@ -168,6 +168,11 @@
                         <span>{{ $class->study_materials_count }} {{ Str::plural('material', $class->study_materials_count) }}</span>
                         <span>{{ $class->exams_count }} {{ Str::plural('exam', $class->exams_count) }}</span>
                     </div>
+                    <a href="{{ route('class.join.show', $class->invitation_code) }}"
+                       aria-label="{{ __('View content for :class', ['class' => $class->title]) }}"
+                       style="display:inline-block;margin-top:1rem;color:#2563eb;text-decoration:underline;">
+                        View class content
+                    </a>
                 </div>
             @endforeach
         </div>
