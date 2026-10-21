@@ -71,7 +71,7 @@ class ExamResource extends Resource
                             ->minValue(1)
                             ->required()
                             ->default(100)
-                            ->helperText('Defaults to sum of question points.'),
+                            ->helperText('Grading base (for example, 20 or 100). Independent of the sum of question points.'),
                     ]),
 
                 Repeater::make('questions')

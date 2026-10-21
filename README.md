@@ -8,7 +8,7 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 |---|---|
 | Administration | Manage teacher accounts and access the shared Filament panel at `/admin`. |
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
-| Exams | Teachers build single- and multiple-choice exams; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
+| Exams | Teachers build single- and multiple-choice exams and choose a grading base (default 100), preserved independently of question points; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
 | Student experience | Students register, join multiple classes, open syllabus and materials through **View class content** on each dashboard class card, update profile credentials, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
