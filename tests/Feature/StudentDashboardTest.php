@@ -49,6 +49,7 @@ it('dashboard shows subscribed classes as cards', function () {
     $mathClass = SchoolClass::create([
         'title' => 'Mathematics 101',
         'description' => 'Basic algebra and geometry',
+        'syllabus' => '<p>Weekly algebra syllabus</p>',
         'teacher_id' => $teacher->id,
         'invitation_code' => 'MATHCARD',
     ]);
@@ -56,7 +57,7 @@ it('dashboard shows subscribed classes as cards', function () {
     $physicsClass = SchoolClass::create([
         'title' => 'Physics 202',
         'description' => 'Mechanics and thermodynamics',
-        'teacher_id' => $teacher->id,
+        'teacher_id' => User::factory()->create(['role' => 'TEACHER'])->id,
         'invitation_code' => 'PHYSCARD',
     ]);
 
@@ -80,6 +81,25 @@ it('dashboard shows subscribed classes as cards', function () {
     $response->assertSee('Basic algebra and geometry');
     $response->assertSee('Physics 202');
     $response->assertSee('Mechanics and thermodynamics');
+
+    $mathClass->studyMaterials()->create([
+        'title' => 'Algebra practice',
+        'type' => 'LINK',
+        'file_path_or_url' => 'https://example.com/algebra',
+    ]);
+
+    foreach ([$mathClass, $physicsClass] as $class) {
+        $url = route('class.join.show', $class->invitation_code);
+        $response->assertSee('href="'.$url.'"', false);
+        $this->get($url)->assertOk()->assertSee($class->title);
+    }
+
+    $this->get(route('class.join.show', $mathClass->invitation_code))
+        ->assertOk()
+        ->assertSee('Weekly algebra syllabus')
+        ->assertSee('Algebra practice')
+        ->assertSee('href="https://example.com/algebra"', false);
+    expect($student->subscribedClasses()->count())->toBe(2);
 });
 
 // ---------------------------------------------------------------------------

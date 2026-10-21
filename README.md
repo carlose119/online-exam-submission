@@ -10,7 +10,7 @@ Online Exam Submission is an LMS-lite application for managing classes, learning
 | Classes and materials | Teachers manage their own classes, invitation links, and file, link, or meeting materials. |
 | Exams | Teachers build single- and multiple-choice exams; students receive effective attempt/time allowances with server-enforced timing and automatic grading. |
 | Reports | Teachers and administrators view class performance and export PDF or Excel reports. |
-| Student experience | Students register, join multiple classes, use a dashboard, update profile credentials, take exams, and review scores. |
+| Student experience | Students register, join multiple classes, open syllabus and materials through **View class content** on each dashboard class card, update profile credentials, take exams, and review scores. |
 | Live meetings | Teachers schedule one-off, weekly, biweekly, or monthly meetings; recurring instances are materialized as individual records. |
 | Calendars | Subscribed students can download one meeting as `.ics` or use a private aggregate calendar subscription feed. |
 
